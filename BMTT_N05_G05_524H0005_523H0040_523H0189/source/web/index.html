@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital Signatures in Practice - Demo (N05_G05)</title>
+<style>
+  :root {
+    --bg: #f4f6fb; --card: #fff; --line: #e3e7f0; --text: #1d2433; --muted: #67718a;
+    --accent: #4f46e5; --accent-soft: #eef0ff;
+    --good: #15a34a; --good-soft: #e8f8ee; --bad: #dc2626; --bad-soft: #fdecec; --warn: #d97706; --warn-soft: #fff5e3;
+    --alice: #2563eb; --net: #64748b; --eve: #b4236b; --bob: #0f9d76;
+    --mono: "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  button { font: inherit; cursor: pointer; }
+
+  /* ---------- top bar ---------- */
+  .top { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .top-in { max-width: 1280px; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .brand { font-weight: 800; font-size: 17px; }
+  .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
+  .tabs { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: #fff; color: var(--muted); padding: 7px 14px; border-radius: 99px; font-weight: 600; font-size: 14px; }
+  .tab:hover { color: var(--text); border-color: #c8cee0; }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tools { display: flex; gap: 8px; align-items: center; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: #fff; padding: 6px 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .seg button.on { background: var(--text); color: #fff; }
+  .toggle { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .toggle.on { background: var(--accent-soft); color: var(--accent); border-color: #c9ccff; }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 22px 24px 40px; }
+
+  /* ---------- intro ---------- */
+  .hero { text-align: center; padding: 26px 10px 10px; }
+  .hero h1 { font-size: 38px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.5px; }
+  .hero p { color: var(--muted); font-size: 18px; max-width: 760px; margin: 0 auto; }
+  .props { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 28px 0; }
+  .prop { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+  .prop .ic { font-size: 30px; }
+  .prop b { display: block; font-size: 18px; margin: 4px 0; }
+  .prop span { color: var(--muted); }
+  .scenes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .scene-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px; text-align: left; transition: .15s; }
+  .scene-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(30,40,80,.08); border-color: #c9ccff; }
+  .scene-card .n { display: inline-block; background: var(--accent-soft); color: var(--accent); font-weight: 800; border-radius: 8px; padding: 2px 9px; font-size: 13px; }
+  .scene-card b { display: block; font-size: 17px; margin: 8px 0 4px; }
+  .scene-card span { color: var(--muted); font-size: 14px; }
+  .team { text-align: center; color: var(--muted); font-size: 14px; margin-top: 26px; }
+
+  /* ---------- story panel ---------- */
+  .story { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 20px 24px; display: flex; gap: 24px; align-items: center; box-shadow: 0 4px 20px rgba(30,40,80,.05); }
+  .story .txt { flex: 1; min-width: 0; }
+  .story .kicker { font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .6px; }
+  .story h2 { margin: 2px 0 6px; font-size: 25px; line-height: 1.25; }
+  .story p { margin: 0; font-size: 18px; color: #39425a; }
+  .story p b { color: var(--text); }
+  .story .ctrl { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
+  .next { background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 14px 20px; font-size: 17px; font-weight: 700;
+          box-shadow: 0 6px 18px rgba(79,70,229,.3); transition: .15s; }
+  .next:hover { transform: translateY(-1px); filter: brightness(1.07); }
+  .next:disabled { opacity: .6; cursor: wait; transform: none; }
+  .next.done { background: var(--good); box-shadow: 0 6px 18px rgba(21,163,74,.3); }
+  .sub-ctrl { display: flex; justify-content: space-between; align-items: center; }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .dots i.on { background: var(--accent); }
+  .link { background: none; border: 0; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 0; }
+  .keys { color: var(--muted); font-size: 12px; text-align: center; }
+  .keys kbd { background: #f1f3f8; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font: 11px var(--mono); }
+
+  /* ---------- stage ---------- */
+  .stage { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px; }
+  .col { background: rgba(255,255,255,.55); border: 1px dashed #d5dae6; border-radius: 18px; padding: 12px; min-height: 380px; min-width: 0; }
+  .actor { display: flex; align-items: center; gap: 10px; padding: 4px 4px 12px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  .actor .av { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; flex: none; }
+  .actor b { display: block; font-size: 16px; }
+  .actor small { color: var(--muted); font-size: 12.5px; line-height: 1.3; display: block; }
+  .c-alice .av { background: #e6efff; } .c-net .av { background: #eef1f5; } .c-eve .av { background: #fbe7f1; } .c-bob .av { background: #e3f6ef; }
+
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 13px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(30,40,80,.04); }
+  .item.new { animation: pop .45s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+  .item .h { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .item .doc { font-size: 14.5px; background: #fafbfe; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .item .doc mark { background: #ffd9d9; color: var(--bad); font-weight: 700; padding: 0 2px; border-radius: 3px; }
+  .item.evil { border-color: #f1b8d3; background: #fff8fb; }
+  .row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 4px; flex-wrap: wrap; }
+  .row .lbl { min-width: 70px; }
+  .fp { display: inline-flex; align-items: center; gap: 6px; padding: 3px 7px 3px 4px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+  .fp .sq { display: inline-flex; gap: 2px; }
+  .fp .sq i { width: 11px; height: 16px; border-radius: 3px; display: inline-block; }
+  .fp code { font: 12px var(--mono); color: var(--text); }
+  .fp.same { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+  .fp.diff { border-color: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+  .tagx { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; text-transform: uppercase; letter-spacing: .4px; }
+  .tagx.bad { background: var(--bad-soft); color: var(--bad); } .tagx.good { background: var(--good-soft); color: var(--good); }
+  .tagx.warn { background: var(--warn-soft); color: var(--warn); }
+  .secret { cursor: pointer; }
+  .secret .sq, .secret code { filter: blur(5px); transition: filter .2s; }
+  .secret.shown .sq, .secret.shown code { filter: none; }
+  .secret-hint { font-size: 11.5px; color: var(--muted); }
+
+  .verdict { border-radius: 14px; padding: 14px; margin-bottom: 10px; text-align: center; border: 2px solid; }
+  .verdict.new { animation: pop .45s ease-out; }
+  .verdict .big { font-size: 34px; line-height: 1; }
+  .verdict b { display: block; font-size: 17px; margin-top: 6px; }
+  .verdict span { font-size: 13.5px; display: block; margin-top: 4px; }
+  .verdict.good { background: var(--good-soft); border-color: #9fdcb6; color: #0f6b33; }
+  .verdict.bad { background: var(--bad-soft); border-color: #f2a5a5; color: #a11414; }
+  .note { font-size: 13.5px; color: #39425a; background: var(--warn-soft); border: 1px solid #f5d9a8; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .note.good { background: var(--good-soft); border-color: #a9dfbf; }
+  .math { display: none; margin-top: 8px; font: 12.5px/1.5 var(--mono); background: #f6f7fb; border: 1px dashed #cdd3e3; border-radius: 8px; padding: 8px 10px; color: #3b4359; word-break: break-all; }
+  body.show-math .math { display: block; }
+  .math .eq { color: var(--accent); font-weight: 700; }
+
+  .bigeq { text-align: center; font-size: 22px; font-weight: 800; margin: 6px 0; }
+  .bigeq em { font-style: normal; color: var(--bad); }
+
+  footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 8px 0 24px; }
+  footer a { color: var(--muted); }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--bad); color: #fff; padding: 10px 16px; border-radius: 10px; display: none; }
+  .spin { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: s .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+
+  @media (max-width: 1050px) { .stage { grid-template-columns: repeat(2, 1fr); } .scenes { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 720px) { .stage, .scenes, .props { grid-template-columns: 1fr; } .story { flex-direction: column; align-items: stretch; } .story .ctrl { min-width: 0; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <div class="brand">✍️ Digital Signatures in Practice<small>N05_G05 · Introduction to Information Security</small></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="tools">
+    <button class="toggle" id="mathBtn" onclick="toggleMath()">🔬 <span data-t="math"></span></button>
+    <div class="seg"><button id="lang-en" onclick="setLang('en')">EN</button><button id="lang-vi" onclick="setLang('vi')">VI</button></div>
+  </div>
+</div></div>
+
+<main id="main"></main>
+<footer><span data-t="footer"></span> · <a href="/advanced" target="_blank" data-t="adv"></a></footer>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================================================================== i18n */
+let LANG = localStorage.getItem('lang') || 'en';
+const UI = {
+  math: { en: 'Show math', vi: 'Hiện toán' },
+  footer: { en: 'All values are computed live by the project code and the audited cryptography library',
+            vi: 'Mọi giá trị đều được tính trực tiếp bằng code của nhóm và thư viện cryptography đã kiểm định' },
+  adv: { en: 'Technical view', vi: 'Giao diện kỹ thuật' },
+  restart: { en: '↺ Restart this scene', vi: '↺ Làm lại cảnh này' },
+  keys: { en: 'Press <kbd>→</kbd> or <kbd>Space</kbd> for the next step', vi: 'Bấm <kbd>→</kbd> hoặc <kbd>Space</kbd> để sang bước tiếp' },
+  step: { en: 'Step', vi: 'Bước' }, of: { en: 'of', vi: '/' },
+  start: { en: 'Start ▶', vi: 'Bắt đầu ▶' },
+  clickReveal: { en: 'click to reveal', vi: 'bấm để xem' },
+  sig: { en: 'signature', vi: 'chữ ký' },
+};
+const t = o => (o && typeof o === 'object' && !Array.isArray(o) && ('en' in o)) ? o[LANG] : o;
+function fill(s, vars = {}) { return String(s).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? ''); }
+
+/* ===================================================================== helpers */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function toast(m) { const e = $('toast'); e.textContent = m; e.style.display = 'block'; clearTimeout(e._t); e._t = setTimeout(() => e.style.display = 'none', 4000); }
+async function api(path, body = {}) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* fingerprint: the first bytes of a value shown as coloured blocks, so equal values are easy to spot */
+function fp(hex, cls = '', secret = false) {
+  hex = hex.replace(/^0x/, '');
+  let sq = '';
+  for (let i = 0; i < 12; i += 2) { const b = parseInt(hex.slice(i, i + 2) || '0', 16); sq += `<i style="background:hsl(${Math.round(b * 1.41)},70%,${45 + (b % 4) * 6}%)"></i>`; }
+  const txt = hex.length > 14 ? hex.slice(0, 6) + '…' + hex.slice(-4) : hex;
+  return `<span class="fp ${cls} ${secret ? 'secret' : ''}" ${secret ? `onclick="this.classList.toggle('shown')" title="${t(UI.clickReveal)}"` : ''}><span class="sq">${sq}</span><code>${txt}</code></span>`;
+}
+
+/* ===================================================================== actors */
+const ACTORS = {
+  correct: [
+    { id: 'alice', cls: 'c-alice', av: '👩‍💼', name: 'Alice', role: { en: 'Signer: owns the private key', vi: 'Người ký: giữ khóa bí mật' } },
+    { id: 'net', cls: 'c-net', av: '🌐', name: 'Internet', role: { en: 'Public channel: everyone can see', vi: 'Kênh công khai: ai cũng thấy' } },
+    { id: 'eve', cls: 'c-eve', av: '🦹', name: 'Eve', role: { en: 'Attacker', vi: 'Kẻ tấn công' } },
+    { id: 'bob', cls: 'c-bob', av: '👨‍💼', name: 'Bob', role: { en: 'Verifier: has Alice\'s public key', vi: 'Người kiểm tra: có khóa công khai của Alice' } },
+  ],
+  lab: [
+    { id: 'alice', cls: 'c-alice', av: '🏢', name: 'SecureSign', role: { en: 'Invoice signing service (ECDSA)', vi: 'Dịch vụ ký hóa đơn (ECDSA)' } },
+    { id: 'net', cls: 'c-net', av: '🌐', name: 'Internet', role: { en: 'Signed invoices are public', vi: 'Hóa đơn đã ký là công khai' } },
+    { id: 'eve', cls: 'c-eve', av: '🦹', name: 'Eve', role: { en: 'Attacker: sees only public data', vi: 'Kẻ tấn công: chỉ thấy dữ liệu công khai' } },
+    { id: 'bob', cls: 'c-bob', av: '🏦', name: { en: 'Bank', vi: 'Ngân hàng' }, role: { en: 'Pays invoices with a valid signature', vi: 'Thanh toán hóa đơn có chữ ký hợp lệ' } },
+  ],
+};
+ACTORS.rsa = ACTORS.correct;
+
+/* ===================================================================== card renderers */
+function cardHTML(c, isNew) {
+  const n = isNew ? ' new' : '';
+  if (c.type === 'verdict') return `<div class="verdict ${c.tone}${n}"><div class="big">${c.icon}</div><b>${t(c.title)}</b><span>${t(c.sub) || ''}</span>${c.math ? `<div class="math">${c.math}</div>` : ''}</div>`;
+  if (c.type === 'note') return `<div class="note ${c.tone || ''}${n}">${t(c.text)}</div>`;
+  let h = `<div class="item ${c.evil ? 'evil' : ''}${n}"><div class="h">${c.icon || ''} ${t(c.title)} ${c.tag ? `<span class="tagx ${c.tag.tone}">${t(c.tag.text)}</span>` : ''}</div>`;
+  if (c.doc) h += `<div class="doc">${c.doc}</div>`;
+  for (const r of c.rows || []) h += `<div class="row"><span class="lbl">${t(r.label)}</span>${r.html || fp(r.hex, r.cls, r.secret)}${r.after ? ' ' + t(r.after) : ''}</div>`;
+  if (c.hint) h += `<div class="secret-hint">${t(c.hint)}</div>`;
+  if (c.math) h += `<div class="math">${c.math}</div>`;
+  return h + '</div>';
+}
+
+/* ===================================================================== scenes */
+const ALICE_MSG = 'CONTRACT #2026-11: Alice agrees to pay Bob 1,000 USD on 30/11/2026.';
+const TAMPERED = ALICE_MSG.replace('1,000', '9,000');
+const INV1 = 'Invoice #1001: pay 100 USD to Supplier A';
+const INV2 = 'Invoice #1002: pay 250 USD to Supplier B';
+const EVIL = "Invoice #6666: pay 1,000,000 USD to Eve's account";
+const docHL = (s, word) => esc(s).replace(esc(word), `<mark>${esc(word)}</mark>`);
+
+const SCENES = {};
+
+/* ---------- 1. correct use ---------- */
+SCENES.correct = {
+  tab: { en: '1 · How it works', vi: '1 · Cách hoạt động' }, actors: 'correct',
+  kicker: { en: 'Scene 1 · Correct use', vi: 'Cảnh 1 · Dùng đúng cách' },
+  title: { en: 'How does a digital signature protect a document?', vi: 'Chữ ký số bảo vệ tài liệu như thế nào?' },
+  text: { en: 'Alice sends Bob a contract. Bob must be sure that <b>it really comes from Alice</b> and that <b>nobody changed it</b> on the way. We sign with <b>RSA-2048 (PSS)</b> and <b>ECDSA P-256</b>.',
+          vi: 'Alice gửi hợp đồng cho Bob. Bob cần chắc chắn <b>hợp đồng đúng là của Alice</b> và <b>không ai sửa nó</b> trên đường đi. Ta ký bằng <b>RSA-2048 (PSS)</b> và <b>ECDSA P-256</b>.' },
+  steps: [
+    { btn: { en: '🔑 Alice creates her key pair', vi: '🔑 Alice tạo cặp khóa' },
+      title: { en: 'Alice now has two keys', vi: 'Alice có hai chiếc khóa' },
+      text: { en: 'The <b>private key 🔑</b> stays secret with Alice and is used to <b>sign</b>. The <b>public key 🔓</b> is given to everyone, so Bob can <b>verify</b>.',
+              vi: '<b>Khóa bí mật 🔑</b> chỉ Alice giữ, dùng để <b>ký</b>. <b>Khóa công khai 🔓</b> được đưa cho mọi người, để Bob <b>kiểm tra</b>.' },
+      run: async S => {
+        const j = await api('/api/demo1/keygen'); S.keys = j;
+        S.add('alice', { icon: '🔑', title: { en: 'Private key (secret)', vi: 'Khóa bí mật' }, rows: [{ label: 'ECDSA d', hex: j.ec_d, secret: true }],
+          hint: { en: 'Never leaves Alice. Click to reveal.', vi: 'Không bao giờ rời khỏi Alice. Bấm để xem.' } });
+        S.add('bob', { icon: '🔓', title: { en: 'Alice\'s public key', vi: 'Khóa công khai của Alice' }, rows: [{ label: 'ECDSA Q', hex: j.ec_qx }, { label: 'RSA n', hex: j.rsa_n }],
+          math: `RSA: n = ${j.rsa_bits} bits, e = ${j.rsa_e}<br>ECDSA: Q = d·G on P-256<br>Qx = ${j.ec_qx}` });
+      } },
+    { btn: { en: '✍️ Alice signs the contract and sends it', vi: '✍️ Alice ký hợp đồng và gửi đi' },
+      title: { en: 'The contract travels with its signature', vi: 'Hợp đồng được gửi kèm chữ ký' },
+      text: { en: 'Alice computes a <b>SHA-256 fingerprint</b> of the contract and signs that fingerprint with her <b>private key</b>. The signature is a short number that only Alice could produce.',
+              vi: 'Alice tính <b>dấu vân tay SHA-256</b> của hợp đồng rồi ký dấu vân tay đó bằng <b>khóa bí mật</b>. Chữ ký là một con số mà chỉ Alice mới tạo ra được.' },
+      run: async S => {
+        const j = await api('/api/demo1/sign', { message: ALICE_MSG }); S.sig = j;
+        S.add('net', { icon: '📄', title: { en: 'Signed contract', vi: 'Hợp đồng đã ký' }, doc: esc(ALICE_MSG),
+          rows: [{ label: 'RSA ' + t(UI.sig), hex: j.rsa_sig }, { label: 'ECDSA ' + t(UI.sig), hex: j.ec_sig }],
+          math: `SHA-256(m) = ${j.hash}<br>RSA-PSS signature: ${j.rsa_len} bytes<br>ECDSA signature: ${j.ec_len} bytes (about 4× smaller)` });
+      } },
+    { btn: { en: '🔍 Bob verifies the signature', vi: '🔍 Bob kiểm tra chữ ký' },
+      title: { en: 'Valid: Bob can trust the contract', vi: 'Hợp lệ: Bob tin được hợp đồng' },
+      text: { en: 'Bob uses <b>Alice\'s public key</b>. Both signatures match the contract, so it <b>comes from Alice</b> and <b>was not changed</b>.',
+              vi: 'Bob dùng <b>khóa công khai của Alice</b>. Cả hai chữ ký đều khớp với hợp đồng, vậy hợp đồng <b>đúng là của Alice</b> và <b>không bị sửa</b>.' },
+      run: async S => {
+        const j = await api('/api/demo1/verify', { message: ALICE_MSG });
+        S.add('bob', { type: 'verdict', tone: 'good', icon: '✅', title: { en: 'VALID: contract accepted', vi: 'HỢP LỆ: chấp nhận hợp đồng' },
+          sub: `RSA-PSS ${j.rsa_ok ? '✓' : '✗'} · ECDSA ${j.ec_ok ? '✓' : '✗'}` });
+      } },
+    { btn: { en: '🦹 Eve changes 1,000 USD → 9,000 USD', vi: '🦹 Eve sửa 1,000 USD → 9,000 USD' },
+      title: { en: 'Tampering is detected', vi: 'Bị sửa là phát hiện ngay' },
+      text: { en: 'Eve changed <b>one character</b>, but that changed <b>{bits} of the 256 bits</b> of the fingerprint. The old signature no longer matches, so Bob <b>rejects</b> it. This is <b>integrity</b>.',
+              vi: 'Eve chỉ sửa <b>một ký tự</b>, nhưng dấu vân tay thay đổi tới <b>{bits}/256 bit</b>. Chữ ký cũ không còn khớp nên Bob <b>từ chối</b>. Đó là tính <b>toàn vẹn</b>.' },
+      run: async S => {
+        const j = await api('/api/demo1/verify', { message: TAMPERED }); S.vars.bits = j.bits_changed;
+        S.add('eve', { icon: '✏️', evil: true, title: { en: 'Eve edits the contract', vi: 'Eve sửa hợp đồng' }, doc: docHL(TAMPERED, '9,000'),
+          rows: [{ label: { en: 'old fingerprint', vi: 'vân tay cũ' }, hex: j.hash_signed }, { label: { en: 'new fingerprint', vi: 'vân tay mới' }, hex: j.hash_now, cls: 'same' }] });
+        S.add('bob', { type: 'verdict', tone: 'good', icon: '🛡️', title: { en: 'INVALID: tampered contract rejected', vi: 'KHÔNG HỢP LỆ: từ chối hợp đồng bị sửa' },
+          sub: `RSA-PSS ${j.rsa_ok ? '✓' : '✗'} · ECDSA ${j.ec_ok ? '✓' : '✗'}`, math: `SHA-256 before: ${j.hash_signed}<br>SHA-256 after:&nbsp; ${j.hash_now}` });
+      } },
+    { btn: { en: '🦹 Eve signs with her own key, pretending to be Alice', vi: '🦹 Eve tự ký bằng khóa của mình, giả làm Alice' },
+      title: { en: 'Impersonation is detected', vi: 'Giả danh cũng bị phát hiện' },
+      text: { en: 'Eve does not have Alice\'s private key, so her signature does not match <b>Alice\'s public key</b>. This is <b>authentication</b>. Since only Alice can make a valid signature, she cannot later deny signing: <b>non-repudiation</b>.',
+              vi: 'Eve không có khóa bí mật của Alice nên chữ ký của Eve không khớp với <b>khóa công khai của Alice</b>. Đó là tính <b>xác thực</b>. Và vì chỉ Alice tạo được chữ ký hợp lệ, Alice không thể chối là mình đã ký: <b>chống chối bỏ</b>.' },
+      run: async S => {
+        const j = await api('/api/demo1/eve_sign', { message: TAMPERED });
+        S.add('eve', { icon: '🔑', evil: true, title: { en: 'Eve signs with HER key', vi: 'Eve ký bằng khóa CỦA EVE' }, rows: [{ label: 'ECDSA ' + t(UI.sig), hex: j.ec_sig }] });
+        S.add('bob', { type: 'verdict', tone: 'good', icon: '🛡️', title: { en: 'INVALID: not signed by Alice', vi: 'KHÔNG HỢP LỆ: không phải Alice ký' },
+          sub: `RSA-PSS ${j.rsa_ok ? '✓' : '✗'} · ECDSA ${j.ec_ok ? '✓' : '✗'}` });
+      } },
+  ],
+  end: { title: { en: 'Used correctly, digital signatures work', vi: 'Dùng đúng cách thì chữ ký số rất an toàn' },
+         text: { en: 'Valid signatures are accepted; tampering and impersonation are rejected. <b>But what if the signing software has a bug?</b>',
+                 vi: 'Chữ ký đúng được chấp nhận; sửa nội dung hay giả danh đều bị từ chối. <b>Nhưng nếu phần mềm ký có lỗi thì sao?</b>' },
+         next: 'attack', btn: { en: 'Next: the attack ▶', vi: 'Tiếp: cuộc tấn công ▶' } },
+};
+
+/* ---------- 2/3. nonce-reuse lab ---------- */
+function labScene(mode) {
+  const V = mode === 'vulnerable';
+  return {
+    tab: V ? { en: '2 · The attack', vi: '2 · Tấn công' } : { en: '3 · The fix', vi: '3 · Bản vá' }, actors: 'lab',
+    kicker: V ? { en: 'Scene 2 · Attack: ECDSA nonce reuse', vi: 'Cảnh 2 · Tấn công: dùng lại số k' } : { en: 'Scene 3 · Defense: RFC 6979', vi: 'Cảnh 3 · Phòng thủ: RFC 6979' },
+    title: V ? { en: 'One small bug, and the private key leaks', vi: 'Một lỗi nhỏ làm lộ cả khóa bí mật' }
+             : { en: 'Same attack, after the fix', vi: 'Cùng cuộc tấn công, sau khi vá' },
+    text: V ? { en: 'ECDSA needs a <b>new secret random number k</b> for every signature. SecureSign\'s developer made a mistake: <b>k is created once and reused</b>. Eve only sees the public invoices.',
+                vi: 'ECDSA cần một <b>số ngẫu nhiên bí mật k MỚI</b> cho mỗi chữ ký. Lập trình viên của SecureSign mắc lỗi: <b>k chỉ tạo một lần rồi dùng lại</b>. Eve chỉ thấy các hóa đơn công khai.' }
+            : { en: 'Only one thing changes: k is now computed with <b>RFC 6979</b>, k = HMAC(private key, fingerprint of the message). <b>Every message gets its own k</b>, and nobody can predict it. Eve runs exactly the same attack.',
+                vi: 'Chỉ thay đổi một điều: k được tính bằng <b>RFC 6979</b>, k = HMAC(khóa bí mật, vân tay của thông điệp). <b>Mỗi thông điệp có k riêng</b> và không ai đoán được. Eve chạy y hệt cuộc tấn công cũ.' },
+    steps: [
+      { btn: { en: '🏢 Start the SecureSign service', vi: '🏢 Khởi động dịch vụ SecureSign' },
+        title: { en: 'The service is running', vi: 'Dịch vụ đã chạy' },
+        text: V ? { en: 'It has a strong private key, but a <b>bug</b>: it picks k only once. The bank only knows the <b>public key</b>. The private key is blurred; we reveal it at the end to compare.',
+                    vi: 'Dịch vụ có khóa bí mật mạnh, nhưng có <b>lỗi</b>: chỉ chọn k một lần. Ngân hàng chỉ biết <b>khóa công khai</b>. Khóa bí mật đang bị che; cuối cùng ta sẽ mở ra để so sánh.' }
+                : { en: 'Same strong private key, but now with the <b>RFC 6979 fix</b>. The bank only knows the <b>public key</b>.',
+                    vi: 'Vẫn khóa bí mật mạnh, nhưng giờ đã có <b>bản vá RFC 6979</b>. Ngân hàng chỉ biết <b>khóa công khai</b>.' },
+        run: async S => {
+          const j = await api('/api/ecdsa/start', { mode }); S.lab = j;
+          S.add('alice', { icon: '🔑', title: { en: 'Private key d', vi: 'Khóa bí mật d' }, rows: [{ label: 'd', hex: j.d, secret: true }],
+            tag: V ? { tone: 'bad', text: { en: 'bug: k reused', vi: 'lỗi: dùng lại k' } } : { tone: 'good', text: { en: 'fixed: RFC 6979', vi: 'đã vá: RFC 6979' } },
+            hint: { en: 'Click to reveal', vi: 'Bấm để xem' },
+            math: V ? 'self._k = random()   # only ONCE  ← BUG<br>sign(m) = ecdsa_sign(m, d, self._k)' : 'k = rfc6979_nonce(d, m)   # new k per message<br>sign(m) = ecdsa_sign(m, d, k)' });
+          S.add('bob', { icon: '🔓', title: { en: 'SecureSign public key', vi: 'Khóa công khai SecureSign' }, rows: [{ label: 'Q', hex: j.qx }] });
+        } },
+      { btn: { en: '📄 Sign invoice #1001', vi: '📄 Ký hóa đơn #1001' },
+        title: { en: 'An ECDSA signature has two parts: r and s', vi: 'Chữ ký ECDSA gồm hai phần: r và s' },
+        text: { en: 'The first part <b>r</b> comes directly from the secret number k. <b>Same k → same r.</b> The bank checks the invoice: valid.',
+                vi: 'Phần đầu <b>r</b> được tính trực tiếp từ số bí mật k. <b>Cùng k → cùng r.</b> Ngân hàng kiểm tra hóa đơn: hợp lệ.' },
+        run: async S => {
+          const j = await api('/api/ecdsa/sign', { message: INV1 }); S.s1 = j;
+          S.add('net', { id: 'inv1', icon: '📄', title: { en: 'Invoice #1001', vi: 'Hóa đơn #1001' }, doc: esc(INV1), rows: [{ label: 'r', hex: j.r }, { label: 's', hex: j.s }] });
+          S.add('bob', { icon: '✅', title: { en: 'Invoice #1001 is valid', vi: 'Hóa đơn #1001 hợp lệ' } });
+        } },
+      { btn: { en: '📄 Sign invoice #1002', vi: '📄 Ký hóa đơn #1002' },
+        title: V ? { en: 'Look at r: it is the same in both!', vi: 'Nhìn r: hai chữ ký giống hệt nhau!' } : { en: 'r is different in each signature', vi: 'r khác nhau ở mỗi chữ ký' },
+        text: V ? { en: 'Different invoices, but the <b>same r</b> (same colours). That proves the service <b>reused k</b>. Anyone on the Internet can see this.',
+                    vi: 'Hai hóa đơn khác nhau nhưng <b>r giống nhau</b> (cùng màu). Điều đó chứng tỏ dịch vụ đã <b>dùng lại k</b>. Ai trên Internet cũng thấy được.' }
+                : { en: 'Each invoice got its <b>own k</b>, so the r values are <b>different</b>. Nothing repeats, nothing leaks.',
+                    vi: 'Mỗi hóa đơn có <b>k riêng</b>, nên các giá trị r <b>khác nhau</b>. Không có gì lặp lại, không có gì bị lộ.' },
+        run: async S => {
+          const j = await api('/api/ecdsa/sign', { message: INV2 }); S.s2 = j;
+          const same = j.r === S.s1.r, cls = same ? 'same' : 'diff';
+          S.update('inv1', c => { c.rows[0].cls = cls; });
+          S.add('net', { icon: '📄', title: { en: 'Invoice #1002', vi: 'Hóa đơn #1002' }, doc: esc(INV2), rows: [{ label: 'r', hex: j.r, cls }, { label: 's', hex: j.s }],
+            tag: same ? { tone: 'bad', text: { en: 'same r!', vi: 'trùng r!' } } : { tone: 'good', text: { en: 'different r', vi: 'r khác' } } });
+          S.add('bob', { icon: '✅', title: { en: 'Invoice #1002 is valid', vi: 'Hóa đơn #1002 hợp lệ' } });
+        } },
+      { btn: { en: '🦹 Eve tries to compute the private key', vi: '🦹 Eve thử tính khóa bí mật' },
+        title: V ? { en: 'Eve recovered the private key!', vi: 'Eve đã tìm ra khóa bí mật!' } : { en: 'The attack fails', vi: 'Cuộc tấn công thất bại' },
+        text: V ? { en: 'With the same k, Eve has <b>2 equations and 2 unknowns</b> (k and d). Subtracting them gives k, then k gives d. It took <b>{ms} ms</b>. Reveal the service\'s key: <b>it is identical</b>.',
+                    vi: 'Vì cùng k, Eve có <b>2 phương trình, 2 ẩn</b> (k và d). Trừ hai phương trình ra k, rồi từ k ra d. Mất <b>{ms} ms</b>. Mở khóa của dịch vụ ra xem: <b>giống hệt</b>.' }
+                : { en: 'The r values differ, so Eve has <b>more unknowns than equations</b>. Forcing the formula anyway gives a <b>wrong key</b> that does not match the public key.',
+                    vi: 'Các giá trị r khác nhau nên Eve có <b>nhiều ẩn hơn số phương trình</b>. Cố tính theo công thức thì ra một <b>khóa sai</b>, không khớp với khóa công khai.' },
+        run: async S => {
+          const j = await api('/api/ecdsa/attack'); S.vars.ms = j.ms;
+          const ok = j.matches;
+          const math = j.reused
+            ? `<span class="eq">s1 − s2 = k⁻¹(h1 − h2)  ⇒  k = (h1 − h2)/(s1 − s2) mod n</span><br>k = ${j.k}<br><span class="eq">s1·k = h1 + r·d  ⇒  d = (s1·k − h1)/r mod n</span><br>d = ${j.d}`
+            : `recover_nonce(): ${esc(j.refused || '')}<br>forced guess d′ = ${j.d}`;
+          S.add('eve', { icon: '🧮', evil: true, title: { en: 'Eve\'s calculation', vi: 'Eve tính toán' },
+            rows: [{ label: { en: 'found key', vi: 'khóa tìm được' }, hex: j.d, cls: ok ? 'same' : 'diff' }],
+            tag: ok ? { tone: 'bad', text: { en: 'matches public key', vi: 'khớp khóa công khai' } } : { tone: 'good', text: { en: 'wrong key', vi: 'khóa sai' } }, math });
+          if (ok) {
+            S.update('alice0', c => { c.rows[0].secret = false; c.rows[0].cls = 'same'; });
+            S.add('eve', { type: 'note', text: { en: '☠️ d·G = Q: this <b>is</b> SecureSign\'s private key.', vi: '☠️ d·G = Q: đây <b>chính là</b> khóa bí mật của SecureSign.' } });
+          } else {
+            S.update('alice0', c => { c.rows[0].secret = false; c.rows[0].cls = 'diff'; });
+            S.add('eve', { type: 'note', tone: 'good', text: { en: '🛡️ d′·G ≠ Q: the key was <b>not</b> recovered.', vi: '🛡️ d′·G ≠ Q: <b>không</b> tìm được khóa.' } });
+          }
+        } },
+      { btn: { en: '💸 Eve forges an invoice for 1,000,000 USD', vi: '💸 Eve làm giả hóa đơn 1,000,000 USD' },
+        title: V ? { en: 'The bank is fooled', vi: 'Ngân hàng bị lừa' } : { en: 'The bank rejects the forgery', vi: 'Ngân hàng từ chối hóa đơn giả' },
+        text: V ? { en: 'Eve signs her invoice with the stolen key. The bank checks it with the <b>real public key</b> and an <b>audited library</b>, and it says <b>VALID</b>. Integrity, authentication and non-repudiation are all broken.',
+                    vi: 'Eve ký hóa đơn giả bằng khóa đã đánh cắp. Ngân hàng kiểm tra bằng <b>khóa công khai thật</b> và <b>thư viện đã kiểm định</b>, kết quả: <b>HỢP LỆ</b>. Toàn vẹn, xác thực và chống chối bỏ đều bị phá vỡ.' }
+                : { en: 'Eve\'s signature, made with a wrong key, does not match the real public key. The <b>fix works</b>: the same attack code now achieves nothing.',
+                    vi: 'Chữ ký của Eve được tạo bằng khóa sai nên không khớp với khóa công khai thật. <b>Bản vá hiệu quả</b>: cùng một đoạn code tấn công giờ vô dụng.' },
+        run: async S => {
+          const j = await api('/api/ecdsa/forge', { message: EVIL });
+          S.add('eve', { icon: '💸', evil: true, title: { en: 'Forged invoice', vi: 'Hóa đơn giả' }, doc: docHL(EVIL, '1,000,000 USD'), rows: [{ label: 'r', hex: j.r }, { label: 's', hex: j.s }] });
+          S.add('bob', j.accepted
+            ? { type: 'verdict', tone: 'bad', icon: '💥', title: { en: 'VALID: 1,000,000 USD paid to Eve', vi: 'HỢP LỆ: đã trả 1,000,000 USD cho Eve' }, sub: { en: 'The forgery cannot be told apart from a real signature.', vi: 'Không thể phân biệt chữ ký giả với chữ ký thật.' } }
+            : { type: 'verdict', tone: 'good', icon: '🛡️', title: { en: 'INVALID: forgery rejected', vi: 'KHÔNG HỢP LỆ: từ chối hóa đơn giả' }, sub: { en: 'No money lost.', vi: 'Không mất tiền.' } });
+        } },
+      ...(V ? [] : [{
+        btn: { en: '🔁 Compare with the audited library', vi: '🔁 So sánh với thư viện đã kiểm định' },
+        title: { en: 'Our fix matches the standard exactly', vi: 'Bản vá khớp chính xác với chuẩn' },
+        text: { en: 'We signed invoice #1001 with our RFC 6979 code and with the <b>cryptography</b> library (deterministic mode). The two signatures are <b>byte-for-byte identical</b>.',
+                vi: 'Ta ký hóa đơn #1001 bằng code RFC 6979 của nhóm và bằng thư viện <b>cryptography</b> (chế độ deterministic). Hai chữ ký <b>giống nhau đến từng byte</b>.' },
+        run: async S => {
+          const j = await api('/api/ecdsa/crosscheck', { message: INV1 });
+          S.add('alice', { icon: '🔁', title: { en: 'Cross-check', vi: 'Đối chiếu' },
+            rows: [{ label: { en: 'our r', vi: 'r của nhóm' }, hex: j.ours_r, cls: 'diff' }, { label: { en: 'library r', vi: 'r thư viện' }, hex: j.lib_r, cls: 'diff' }],
+            tag: j.identical ? { tone: 'good', text: { en: 'identical', vi: 'giống hệt' } } : { tone: 'bad', text: { en: 'different', vi: 'khác' } } });
+        } }]),
+    ],
+    end: V ? { title: { en: 'The math was never broken, the implementation was', vi: 'Toán học không bị phá, mà là cách cài đặt' },
+               text: { en: 'ECDSA itself is secure. One reused number was enough to leak the key (the same bug leaked Sony\'s PS3 signing key in 2010). <b>How do we fix it?</b>',
+                       vi: 'Bản thân ECDSA vẫn an toàn. Chỉ một con số bị dùng lại là đủ lộ khóa (lỗi này từng làm lộ khóa ký PS3 của Sony năm 2010). <b>Vá thế nào?</b>' },
+               next: 'defense', btn: { en: 'Next: the fix ▶', vi: 'Tiếp: bản vá ▶' } }
+             : { title: { en: 'RFC 6979 stops nonce reuse', vi: 'RFC 6979 chặn lỗi dùng lại k' },
+                 text: { en: 'Each message gets a unique, unpredictable k without needing a random generator. <b>Bonus:</b> why RSA also needs padding.',
+                         vi: 'Mỗi thông điệp có k riêng, không đoán được, và không cần bộ sinh số ngẫu nhiên. <b>Phần thêm:</b> vì sao RSA cũng cần padding.' },
+                 next: 'rsa', btn: { en: 'Bonus: RSA ▶', vi: 'Phần thêm: RSA ▶' } },
+  };
+}
+SCENES.attack = labScene('vulnerable');
+SCENES.defense = labScene('patched');
+
+/* ---------- 4. textbook RSA vs PSS ---------- */
+SCENES.rsa = {
+  tab: { en: '4 · Bonus: RSA', vi: '4 · Thêm: RSA' }, actors: 'rsa',
+  kicker: { en: 'Scene 4 · Bonus', vi: 'Cảnh 4 · Phần thêm' },
+  title: { en: 'Why RSA needs padding (PSS)', vi: 'Vì sao RSA cần padding (PSS)' },
+  text: { en: '"Textbook" RSA signs a number directly: sign(m) = m<sup>d</sup> mod n. It has a dangerous property: <b>sign(a) × sign(b) = sign(a × b)</b>.',
+          vi: 'RSA "sách giáo khoa" ký thẳng con số: sign(m) = m<sup>d</sup> mod n. Nó có tính chất nguy hiểm: <b>sign(a) × sign(b) = sign(a × b)</b>.' },
+  steps: [
+    { btn: { en: '✍️ Alice signs 100 and 50 (textbook RSA)', vi: '✍️ Alice ký số 100 và 50 (RSA sách giáo khoa)' },
+      title: { en: 'Two harmless signed amounts', vi: 'Hai số tiền vô hại đã được ký' },
+      text: { en: 'Alice approves payments of <b>100</b> and <b>50</b>. Eve sees both signatures on the Internet.',
+              vi: 'Alice duyệt hai khoản <b>100</b> và <b>50</b>. Eve nhìn thấy cả hai chữ ký trên Internet.' },
+      run: async S => {
+        const j = await api('/api/rsa/run', { m1: 100, m2: 50 }); S.rsa = j;
+        S.add('net', { icon: '📄', title: { en: 'Amount 100', vi: 'Số tiền 100' }, rows: [{ label: t(UI.sig), hex: j.s1 }] });
+        S.add('net', { icon: '📄', title: { en: 'Amount 50', vi: 'Số tiền 50' }, rows: [{ label: t(UI.sig), hex: j.s2 }] });
+      } },
+    { btn: { en: '🦹 Eve multiplies the two signatures', vi: '🦹 Eve nhân hai chữ ký với nhau' },
+      title: { en: 'Eve made a valid signature for 5,000', vi: 'Eve tạo được chữ ký hợp lệ cho 5,000' },
+      text: { en: 'Without the private key, Eve computes sign(100) × sign(50) and gets a signature that Bob accepts for <b>5,000 = 100 × 50</b>.',
+              vi: 'Không cần khóa bí mật, Eve tính sign(100) × sign(50) và được chữ ký mà Bob chấp nhận cho <b>5,000 = 100 × 50</b>.' },
+      run: async S => {
+        const j = S.rsa;
+        S.add('eve', { icon: '✖️', evil: true, title: { en: 'Multiply', vi: 'Phép nhân' }, doc: '<div class="bigeq">100 × 50 = <em>5,000</em></div>', rows: [{ label: t(UI.sig), hex: j.forged_s }],
+          math: 's = s1 · s2 mod n<br>s^e mod n = 100^(de) · 50^(de) = 5000' });
+        S.add('bob', j.textbook_ok
+          ? { type: 'verdict', tone: 'bad', icon: '💥', title: { en: 'VALID: 5,000 accepted', vi: 'HỢP LỆ: chấp nhận 5,000' }, sub: { en: 'Textbook RSA is forgeable.', vi: 'RSA sách giáo khoa bị giả mạo được.' } }
+          : { type: 'verdict', tone: 'good', icon: '🛡️', title: { en: 'Rejected', vi: 'Bị từ chối' } });
+      } },
+    { btn: { en: '🔐 Try the same trick against RSA-PSS', vi: '🔐 Thử lại mánh đó với RSA-PSS' },
+      title: { en: 'PSS blocks the trick', vi: 'PSS chặn được mánh này' },
+      text: { en: 'PSS signs a <b>hashed and randomly salted</b> version of the message, not the raw number. Multiplying two PSS signatures produces garbage, and Bob <b>rejects</b> it.',
+              vi: 'PSS ký phiên bản <b>đã băm và thêm muối ngẫu nhiên</b> của thông điệp, không ký số thô. Nhân hai chữ ký PSS chỉ ra rác, Bob <b>từ chối</b>.' },
+      run: async S => {
+        const j = S.rsa;
+        S.add('eve', { icon: '✖️', evil: true, title: { en: 'Multiply PSS signatures', vi: 'Nhân chữ ký PSS' }, rows: [{ label: t(UI.sig), hex: j.pss_forged }] });
+        S.add('bob', j.pss_ok
+          ? { type: 'verdict', tone: 'bad', icon: '💥', title: { en: 'Accepted (unexpected)', vi: 'Được chấp nhận (bất thường)' } }
+          : { type: 'verdict', tone: 'good', icon: '🛡️', title: { en: 'INVALID: PSS rejects 5,000', vi: 'KHÔNG HỢP LỆ: PSS từ chối 5,000' }, sub: { en: 'Padding protects RSA.', vi: 'Padding bảo vệ RSA.' } });
+      } },
+  ],
+  end: { title: { en: 'Conclusion: implementation details decide security', vi: 'Kết luận: chi tiết cài đặt quyết định độ an toàn' },
+         text: { en: 'RSA and ECC were never broken mathematically. Reused nonces and missing padding broke them. Use audited libraries, RFC 6979 (or Ed25519) and RSA-PSS.',
+                 vi: 'RSA và ECC chưa bao giờ bị phá về mặt toán học. Chính việc dùng lại k và thiếu padding đã phá chúng. Hãy dùng thư viện đã kiểm định, RFC 6979 (hoặc Ed25519) và RSA-PSS.' },
+         next: 'intro', btn: { en: '⌂ Back to start', vi: '⌂ Về trang đầu' } },
+};
+
+/* ===================================================================== state & render */
+const ORDER = ['intro', 'correct', 'attack', 'defense', 'rsa'];
+let CUR = 'intro', ST = null, BUSY = false;
+
+function newState() {
+  const S = { step: 0, cols: { alice: [], net: [], eve: [], bob: [] }, vars: {}, seen: new Set(), uid: 0 };
+  S.add = (col, card) => { card._id = card.id || (col + S.cols[col].length); S.cols[col].push(card); };
+  S.update = (id, fn) => { for (const c of Object.values(S.cols)) for (const x of c) if (x._id === id) fn(x); };
+  return S;
+}
+
+function renderTabs() {
+  const items = [['intro', { en: '⌂ Start', vi: '⌂ Mở đầu' }], ...ORDER.slice(1).map(k => [k, SCENES[k].tab])];
+  $('tabs').innerHTML = items.map(([k, lab]) => `<button class="tab ${k === CUR ? 'active' : ''}" onclick="go('${k}')">${t(lab)}</button>`).join('');
+  document.querySelectorAll('[data-t]').forEach(e => e.innerHTML = t(UI[e.dataset.t]));
+  $('lang-en').classList.toggle('on', LANG === 'en'); $('lang-vi').classList.toggle('on', LANG === 'vi');
+}
+
+function renderIntro() {
+  const P = [['🧾', { en: 'Integrity', vi: 'Toàn vẹn' }, { en: 'Any change to the document is detected.', vi: 'Mọi thay đổi trên tài liệu đều bị phát hiện.' }],
+             ['🪪', { en: 'Authentication', vi: 'Xác thực' }, { en: 'Proves who signed it.', vi: 'Chứng minh ai là người ký.' }],
+             ['✍️', { en: 'Non-repudiation', vi: 'Chống chối bỏ' }, { en: 'The signer cannot deny it later.', vi: 'Người ký không thể chối bỏ.' }]];
+  const sc = ORDER.slice(1).map((k, i) => `<button class="scene-card" onclick="go('${k}')"><span class="n">${i + 1}</span><b>${t(SCENES[k].title)}</b><span>${t(SCENES[k].kicker)}</span></button>`).join('');
+  $('main').innerHTML = `
+    <div class="hero"><h1>${t({ en: 'Digital Signatures in Practice', vi: 'Chữ ký số trong thực tế' })}</h1>
+      <p>${t({ en: 'RSA and ECDSA, a real attack that steals the private key, and the fix. Click through the story one step at a time.',
+               vi: 'RSA và ECDSA, một cuộc tấn công thật đánh cắp khóa bí mật, và cách vá. Bấm qua từng bước của câu chuyện.' })}</p></div>
+    <div class="props">${P.map(([i, b, s]) => `<div class="prop"><div class="ic">${i}</div><b>${t(b)}</b><span>${t(s)}</span></div>`).join('')}</div>
+    <div class="scenes">${sc}</div>
+    <div style="text-align:center;margin-top:24px"><button class="next" style="min-width:260px" onclick="go('correct')">${t(UI.start)}</button></div>
+    <div class="team">Trieu Ngoc Van Anh (524H0005) · Duong Tran Quoc Khanh (523H0040) · Nguyen Vo Thanh Tu (523H0189)<br>
+      ${t({ en: 'Instructor', vi: 'Giảng viên' })}: Ph.D. Huynh Ngoc Tu · Ton Duc Thang University</div>`;
+}
+
+function renderScene() {
+  const sc = SCENES[CUR], S = ST, n = sc.steps.length;
+  const last = S.step > 0 ? sc.steps[S.step - 1] : null;
+  const finished = S.step >= n;
+  const head = last || sc;
+  let kicker = t(sc.kicker) + (S.step > 0 ? ` · ${t(UI.step)} ${S.step} ${t(UI.of)} ${n}` : '');
+  const btnLabel = finished ? t(sc.end.btn) : t(sc.steps[S.step].btn);
+  const actors = ACTORS[sc.actors];
+  const cols = actors.map(a => `<div class="col ${a.cls}"><div class="actor"><div class="av">${a.av}</div><div><b>${t(a.name)}</b><small>${t(a.role)}</small></div></div>
+      ${S.cols[a.id].map(c => { const isNew = !S.seen.has(c._id); return cardHTML(c, isNew); }).join('')}</div>`).join('');
+  Object.values(S.cols).flat().forEach(c => S.seen.add(c._id));
+  const endBox = finished ? `<div class="note good" style="margin-top:10px;font-size:15px"><b>${t(sc.end.title)}</b><br>${t(sc.end.text)}</div>` : '';
+  $('main').innerHTML = `
+    <div class="story">
+      <div class="txt"><div class="kicker">${kicker}</div><h2>${t(head.title)}</h2><p>${fill(t(head.text), S.vars)}</p>${endBox}</div>
+      <div class="ctrl">
+        <button class="next ${finished ? 'done' : ''}" id="nextBtn" onclick="next()">${btnLabel}</button>
+        <div class="sub-ctrl"><div class="dots">${sc.steps.map((_, i) => `<i class="${i < S.step ? 'on' : ''}"></i>`).join('')}</div>
+          <button class="link" onclick="restart()">${t(UI.restart)}</button></div>
+        <div class="keys">${t(UI.keys)}</div>
+      </div>
+    </div>
+    <div class="stage">${cols}</div>`;
+}
+
+function render() { renderTabs(); CUR === 'intro' ? renderIntro() : renderScene(); }
+
+/* ===================================================================== actions */
+function go(scene) { if (BUSY) return; CUR = scene; ST = newState(); location.hash = scene; render(); window.scrollTo(0, 0); }
+function restart() { if (!BUSY) go(CUR); }
+async function next() {
+  if (CUR === 'intro') return go('correct');
+  const sc = SCENES[CUR];
+  if (ST.step >= sc.steps.length) return go(sc.end.next);
+  if (BUSY) return;
+  BUSY = true;
+  const b = $('nextBtn'); b.disabled = true; b.innerHTML = '<span class="spin"></span>' + b.innerHTML;
+  try { await sc.steps[ST.step].run(ST); ST.step++; }
+  catch (e) { toast(e.message); }
+  finally { BUSY = false; render(); }
+}
+function setLang(l) { LANG = l; localStorage.setItem('lang', l); document.documentElement.lang = l; render(); }
+function toggleMath() { document.body.classList.toggle('show-math'); $('mathBtn').classList.toggle('on'); }
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+  else if (e.key === 'r' || e.key === 'R') restart();
+  else if (e.key === 'm' || e.key === 'M') toggleMath();
+});
+
+/* Deep links: #attack opens a scene; #attack/5 also runs its first 5 steps (used for report screenshots). */
+(async () => {
+  const [h, n] = location.hash.slice(1).split('/');
+  go(ORDER.includes(h) ? h : 'intro');
+  for (let i = 0; i < (parseInt(n) || 0) && CUR !== 'intro' && ST.step < SCENES[CUR].steps.length; i++) await next();
+  if (n) { location.hash = h + '/' + n; document.title += ' [ready]'; }
+})();
+</script>
+</body>
+</html>

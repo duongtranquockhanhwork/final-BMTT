@@ -22,5 +22,5 @@ openssl dgst -sha256 -verify ec_pub.pem -signature contract.ecdsa.sig contract.t
 openssl dgst -sha256 -verify rsa_pub.pem -sigopt rsa_padding_mode:pss -signature contract.rsa.sig contract.txt
 
 echo "== 4. Verify TAMPERED (expected: Verification failure)"
-openssl dgst -sha256 -verify ec_pub.pem -signature contract.ecdsa.sig tampered.txt 2>/dev/null
-openssl dgst -sha256 -verify rsa_pub.pem -sigopt rsa_padding_mode:pss -signature contract.rsa.sig tampered.txt 2>/dev/null
+openssl dgst -sha256 -verify ec_pub.pem -signature contract.ecdsa.sig tampered.txt 2>&1
+openssl dgst -sha256 -verify rsa_pub.pem -sigopt rsa_padding_mode:pss -signature contract.rsa.sig tampered.txt 2>&1
