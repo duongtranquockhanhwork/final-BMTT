@@ -843,15 +843,6 @@ for r_ in refs:
     p = E('w:p'); pPr = sub(p, 'w:pPr'); sub(pPr, 'w:spacing', after=120, line=360, lineRule='auto')
     sub(pPr, 'w:ind', left=567, hanging=567); sub(pPr, 'w:jc', val='both')
     run(p, r_); put(p)
-p = E('w:p'); pPr = sub(p, 'w:pPr'); sub(pPr, 'w:spacing', before=240, after=120, line=360, lineRule='auto'); sub(pPr, 'w:jc', val='both')
-run(p, "AI assistance attribution: ", b=True)
-run(p, "The group used Claude (Anthropic), an AI assistant, to help draft parts of the source code (the SecureSign web "
-       "application, ECDSA support, the receipt and evidence-log service, the Security Lab integration, ecc_core.py, attack.py, "
-       "the demo scripts and the tests), to review the code for security bugs (the three fixes in Section 5.5), to automate "
-       "the screenshots and diagram, and to draft this report. The group reviewed, executed and tested all code (37/37 tests pass, the RFC 6979 output matches the official "
-       "test vector, and the forged PDF was independently checked with OpenSSL) and is responsible for the final content. "
-       "No code was copied from StackOverflow. The P-256 constants and the RFC 6979 algorithm follow references [3] and [9].")
-put(p)
 
 # ------------------------------------------------------------------ lists of figures / tables
 def list_entry(anchor_el, label, text, key):
