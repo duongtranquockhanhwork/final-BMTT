@@ -296,21 +296,17 @@ heading("ABSTRACT", 1, page_break=True)
 para("This report presents the practical phase of our project on digital signatures. Our midterm report analysed RSA and "
      "ECDSA, the role of hash functions and non-repudiation, and argued that real-world breaks come from implementation "
      "mistakes rather than from the mathematics. For the final phase we built SecureSign Cloud, a multi-user web platform "
-     "that signs and verifies PDF documents with RSA-PSS or ECDSA P-256 and SHA-256. Each user generates a key pair in the browser; "
-     "the private key is encrypted with PBKDF2 and AES-256-GCM and never leaves the device, and a public key is accepted "
-     "only after a challenge-response proof-of-possession. The server re-verifies every signature, isolates documents "
-     "between sender and recipient, and protects accounts with Argon2id, CSRF tokens, rate limiting and a strict Content "
-     "Security Policy. To guarantee non-repudiation, every signing, delivery and key event becomes a server-signed, "
-     "timestamped receipt in a SHA-256 hash-chained evidence log. Inside the same application we built a Security Lab "
-     "that demonstrates four attacks on badly "
-     "implemented signatures and their patches. The main attack is ECDSA nonce reuse: from two public signed invoice "
-     "PDFs the attacker recovers the private key and forges a 1,000,000 USD invoice that both the cryptography library "
-     "and OpenSSL accept. RFC 6979 deterministic nonces defeat the same attack code. The lab also shows textbook RSA "
-     "forgery versus RSA-PSS, key substitution versus proof-of-possession, and repudiation and log tampering versus the "
-     "evidence chain. While integrating the platform we found "
-     "and fixed three security bugs. All results are covered by 37 automated tests, and both success criteria from the "
-     "midterm plan were met.")
-p = para("Keywords: digital signature, RSA-PSS, ECDSA, nonce reuse, RFC 6979, proof-of-possession, timestamped receipt, hash chain, non-repudiation.",
+     "that signs and verifies PDF documents with RSA-PSS or ECDSA P-256 and SHA-256. Each user generates a key pair in the "
+     "browser; the private key is encrypted with PBKDF2 and AES-256-GCM and never leaves the device, and a public key is "
+     "accepted only after a challenge-response proof-of-possession. The server re-verifies every signature, isolates "
+     "documents between sender and recipient, and protects accounts with Argon2id, CSRF tokens, rate limiting and a strict "
+     "Content Security Policy. To guarantee non-repudiation, every key event, signature, delivery and verification becomes "
+     "a server-signed, timestamped receipt in a SHA-256 hash-chained evidence log that can be verified offline. We analyse "
+     "five attacks with flow diagrams (document tampering, key substitution, repudiation and log tampering, ECDSA nonce "
+     "reuse, and password guessing behind a spoofed X-Forwarded-For header) and demonstrate in the running system that "
+     "SecureSign detects or blocks them. While integrating the platform we found and fixed three security bugs. All "
+     "results are covered by 21 automated tests.")
+p = para("Keywords: digital signature, RSA-PSS, ECDSA, proof-of-possession, timestamped receipt, hash chain, non-repudiation, PDF signing.",
          indent=False, italic=True)
 
 # ================================================================== MAIN BODY (arabic section)
@@ -321,7 +317,7 @@ heading("CHAPTER 1. INTRODUCTION AND PROJECT METADATA", 1)
 heading("1.1 Project Metadata", 2)
 table_caption("Table 1.1. Project metadata")
 table(["Item", "Details"], [
-    ["Project topic", "Digital Signatures in Practice: RSA and ECC, the Role of Hash Functions, and the Guarantee of Non-Repudiation (SecureSign Cloud PDF signing platform with signed receipts, ECDSA nonce-reuse attack and RFC 6979 defense)"],
+    ["Project topic", "Digital Signatures in Practice: RSA and ECC, the Role of Hash Functions, and the Guarantee of Non-Repudiation (SecureSign Cloud: multi-user PDF signing with RSA-PSS / ECDSA and signed, hash-chained receipts)"],
     ["Course", "Introduction to Information Security, Faculty of Information Technology, Ton Duc Thang University"],
     ["Instructor", "Ph.D. Huynh Ngoc Tu"],
     ["Group", "N05_G05"],
@@ -329,71 +325,69 @@ table(["Item", "Details"], [
     ["Repository link", "https://github.com/duongtranquockhanhwork/final-BMTT"],
 ], [2600, 6187])
 heading("1.2 Executive Summary", 2)
-para("We built SecureSign Cloud, a multi-user web application for signing PDF documents, and a Security Lab inside it. "
-     "SecureSign is the correct use of digital signatures: RSA-PSS or ECDSA P-256 keys are created and stored encrypted "
-     "in the user's browser, the server re-verifies every signature and only accepts a public key after a "
-     "proof-of-possession challenge, and every signing or delivery yields a server-signed, timestamped receipt in a "
-     "hash-chained evidence log, so a signer cannot later deny it. The main attack we demonstrate is ECDSA nonce reuse: "
-     "an invoice-signing service reuses the nonce k, an attacker who only sees two public signed PDFs recovers the "
-     "private key in milliseconds, and a forged 1,000,000 USD invoice is accepted by the cryptography library and by "
-     "OpenSSL. We then patch the signer with RFC 6979 and show that the unchanged attack code fails. Three further lab "
-     "scenes show textbook RSA forgery versus RSA-PSS, key substitution versus proof-of-possession, and repudiation and "
-     "log tampering versus the evidence chain.")
+para("We built SecureSign Cloud, a multi-user web application for signing PDF documents. It is the correct use of "
+     "digital signatures: RSA-PSS or ECDSA P-256 keys are created and stored encrypted in the user's browser, the server "
+     "re-verifies every signature and only accepts a public key after a proof-of-possession challenge, and every signing "
+     "or delivery yields a server-signed, timestamped receipt in a hash-chained evidence log, so a signer cannot later "
+     "deny it. The scenario we demonstrate is a defense: Alice signs a contract PDF and sends it to Bob, and we show how "
+     "SecureSign stops an attacker who edits the PDF, an impostor who registers Alice's public key as her own, and a "
+     "signer or insider who tries to deny the signature or rewrite the log. Each attack is explained with a flow diagram "
+     "and its result is shown in the running system; ECDSA nonce reuse and a rate-limit bypass we fixed complete the "
+     "analysis.")
 heading("1.3 Relation to the Midterm Plan", 2)
 para("Section 5.2 of our midterm report defined two success criteria. (1) The correct-use demo succeeds if valid signatures "
-     "verify and any tampered message is rejected for both RSA and ECDSA. (2) The attack demo succeeds if the ECDSA private "
-     "key is recovered purely from two signatures sharing a reused nonce, and a signature forged with that key is accepted. "
-     "Both criteria are met (Chapter 4), now on real PDF documents rather than short strings. We went beyond the plan "
-     "with a complete signing platform that supports both RSA and ECC, signed receipts for non-repudiation, the RFC 6979 "
-     "patch, three extra attack/defense scenes and 37 automated tests.")
-para("Two tools changed from the plan. The ecdsa package was replaced by our own small P-256 module (ecc_core.py), because "
-     "audited libraries deliberately never let the caller choose k, and we need that to reproduce the bug; correctness is "
-     "proven by cross-checking against the cryptography library. Jupyter Notebook was replaced by the SecureSign web "
-     "application and its Security Lab page, which is easier to present live and is closer to a real deployment.")
+     "verify and any tampered message is rejected for both RSA and ECDSA. This is met in the production system: SecureSign "
+     "signs real PDFs with RSA-PSS or ECDSA P-256 and rejects every modified document (Chapter 4). (2) The attack criterion "
+     "was ECDSA private-key recovery from two signatures that share a nonce. For the final submission we kept the code "
+     "focused on the delivered platform, so this attack is analysed with a step-by-step flow diagram and its equations "
+     "(Section 4.2) together with the reason SecureSign is not affected, instead of a separate attack program.")
+para("We went beyond the plan in the direction of the topic's third part, non-repudiation: a public-key registry with "
+     "proof-of-possession, server-signed receipts and a tamper-evident evidence log, plus a review that found and fixed three "
+     "security bugs. Jupyter Notebook was replaced by the SecureSign web application, which is easier to present live and "
+     "is closer to a real deployment.")
 heading("1.4 Report Structure", 2)
 para("Chapter 2 describes the lab environment needed to reproduce the demonstration. Chapter 3 explains the architecture, "
-     "the key code snippets and the algorithms. Chapter 4 walks through the live demonstration step by step with "
-     "screenshots. Chapter 5 presents the patches, the security fixes we made while integrating the platform, and how an "
-     "attacker might still try to bypass the defenses. Chapter 6 concludes with the challenges, limitations and possible "
-     "improvements.")
+     "the key code snippets and the algorithms. Chapter 4 walks through the demonstration: the normal workflow, the attack "
+     "flows and their results. Chapter 5 explains the defense mechanisms, the security fixes we made while integrating the "
+     "platform, and how an attacker might still try to bypass the defenses. Chapter 6 concludes with the challenges, "
+     "limitations and possible improvements.")
 
 # ---------------- CHAPTER 2
 heading("CHAPTER 2. LAB ENVIRONMENT AND TOOLS SETUP", 1, page_break=True)
 heading("2.1 Hardware and Virtual Machines", 2)
 para("Any x86-64 or Apple Silicon laptop or PC is sufficient. We developed and ran the demonstration on macOS and Windows "
      "10 Pro 64-bit. No virtual machine, special hardware or second host is needed: two browser windows (or one normal and "
-     "one private window) are enough to play Alice and Bob. The server uses less than 150 MB of RAM, and every lab step "
-     "finishes in under one second (RSA key generation takes about 0.2 seconds, ECDSA key generation a few milliseconds).")
+     "one private window) are enough to play Alice and Bob. The server uses less than 150 MB of RAM; RSA key generation "
+     "takes about 0.2 seconds in the browser and ECDSA key generation a few milliseconds.")
 heading("2.2 Software and Libraries", 2)
 table_caption("Table 2.1. Software and libraries")
 table(["Component", "Version", "Purpose"], [
-    ["Python", "3.11.9 (3.11+ required)", "Runtime for the server, the lab, the console demos and the tests"],
-    ["FastAPI, Uvicorn", "≥ 0.115 / ≥ 0.30", "Web API and ASGI server"],
-    ["SQLAlchemy + SQLite / PostgreSQL", "≥ 2.0", "Users, sessions, public keys, documents, audit log and evidence chain (SQLite locally, PostgreSQL in deployment)"],
-    ["cryptography", "≥ 44 (tested 46 and 50)", "Server-side RSA-PSS and ECDSA verification, key parsing, receipt signing; version 44+ is needed for deterministic_signing in the RFC 6979 cross-check"],
-    ["argon2-cffi", "≥ 23.1", "Argon2id password hashing"],
+    ["Python", "3.11.9 (3.11+ required)", "Runtime for the server, the receipt verifier and the tests"],
+    ["FastAPI, Uvicorn", "≥ 0.115 / ≥ 0.30 (tested 0.165 / 0.54)", "Web API and ASGI server"],
+    ["SQLAlchemy + SQLite / PostgreSQL", "≥ 2.0 (tested 2.1)", "Users, sessions, public keys, documents, audit log and evidence chain (SQLite locally, PostgreSQL in deployment)"],
+    ["cryptography", "≥ 44 (tested 50.0)", "Server-side RSA-PSS and ECDSA verification, key parsing and policy, receipt signing and verification"],
+    ["argon2-cffi", "≥ 23.1 (tested 25.1)", "Argon2id password hashing"],
     ["Web Crypto API", "Any modern browser (Chrome, Edge, Firefox, Safari)", "RSA-PSS and ECDSA P-256 key generation and signing, PBKDF2 and AES-256-GCM private-key encryption in the browser"],
-    ["pytest, httpx", "≥ 8.3 / ≥ 0.27", "Automated test suite"],
-    ["OpenSSL / LibreSSL CLI", "3.x / 3.3 (optional)", "Independent verification of the forged PDF, ECDSA .sig files and openssl_demo.sh"],
+    ["pytest, httpx", "≥ 8.3 / ≥ 0.27 (tested 9.2 / 0.28)", "Automated test suite"],
+    ["OpenSSL / LibreSSL CLI", "3.x / 3.3 (optional)", "Independent verification of ECDSA .sig files"],
     ["Docker, Caddy (optional)", "Compose v2, Caddy 2", "Deployment with PostgreSQL and automatic HTTPS (not needed for the demo)"],
 ], [2300, 2400, 4087])
 heading("2.3 Network Configuration", 2)
 para("For the demonstration the server binds only to 127.0.0.1 on port 8000, so it is not reachable from other hosts. Web "
      "Crypto requires a secure context, which browsers grant to localhost; any other address must use HTTPS. Locally the "
-     "app uses SQLite in source/storage/ and does not require email verification. For an Internet deployment, "
+     "app uses SQLite in source/storage/, does not require email verification and creates the demo accounts of Table 2.3. "
+     "For an Internet deployment, "
      "docker-compose.yml runs the app behind Caddy, which obtains a TLS certificate, overwrites the X-Forwarded-For header "
-     "and forwards to the app; PostgreSQL is only reachable on the internal Docker network. The \"public channel\" in the "
-     "Security Lab is simulated in-process, and the forged invoice, its signature and the public key can be downloaded so "
-     "that anyone can re-check the forgery offline.")
+     "and forwards to the app; PostgreSQL is only reachable on the internal Docker network. Receipts can be checked "
+     "offline, without any network access to the server, once its receipt public key has been obtained.")
 heading("2.4 Reproduction Steps and Project Structure", 2)
 code("""python -m venv .venv
 .venv\\Scripts\\activate     # Linux/macOS: source .venv/bin/activate
 pip install -r requirements-dev.txt
-python -m pytest -v                # 37 automated checks
+python -m pytest -v                # 21 automated checks
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 # web app:      http://127.0.0.1:8000   (demo accounts: Table 2.3)
-#   Security Lab:  http://127.0.0.1:8000/lab  (after signing in)
-python demos/run_all.py --pause    # console version of scenes 1-4""")
+python demos/verify_receipt.py R.json --server-key S.pem --pdf F.pdf""")
 table_caption("Table 2.2. Source files and their roles")
 table(["File", "Role"], [
     ["backend/app/main.py", "FastAPI application: registration and login, key registry, signing record, verification, document exchange, administration, security middleware"],
@@ -401,14 +395,10 @@ table(["File", "Role"], [
     ["backend/app/evidence.py", "Server-signed receipts, SHA-256 hash-chained evidence log, chain and receipt verification"],
     ["backend/app/security.py", "Argon2id password hashing, hashed session tokens, double-submit CSRF check, admin role check"],
     ["backend/app/database.py", "SQLAlchemy models (including the evidence entries) and admin bootstrap"],
-    ["backend/app/lab.py", "Security Lab API: six scenes, state kept per user"],
-    ["backend/lab/ecc_core.py, attack.py", "Educational P-256 ECDSA with explicit nonce, RFC 6979; nonce-reuse detection and key recovery"],
-    ["backend/lab/pdf_tools.py", "Small deterministic PDF builder, so the lab signs real PDF bytes"],
     ["frontend/index.html, app.js", "SecureSign web app; key generation, encryption and signing in the browser"],
-    ["frontend/lab/", "Security Lab story page (English/Vietnamese)"],
-    ["demos/", "Console demos 1–4, run_all.py, openssl_demo.sh and verify_receipt.py (offline receipt check)"],
+    ["demos/verify_receipt.py", "Offline receipt verifier for a judge or auditor (does not trust the server)"],
     ["backend/app/demo_seed.py, demo_data/", "Demo accounts created at start-up in development, their encrypted key files and sample PDFs"],
-    ["tests/", "pytest suite (RSA and ECDSA, multi-user isolation, receipts and evidence chain, lab attacks and patches, security fixes, demo accounts)"],
+    ["tests/", "pytest suite (RSA and ECDSA, multi-user isolation, receipts and evidence chain, security fixes, demo accounts)"],
 ], [3000, 5787])
 para("To make the demonstration reproducible without registering, the server creates the demo accounts in Table 2.3 when "
      "it runs in development mode. Alice already owns a registered RSA-PSS 2048 key and Bob an ECDSA P-256 key, and their encrypted private "
@@ -426,64 +416,49 @@ table(["Role", "Email", "Password", "Key file in demo_data/"], [
 # ---------------- CHAPTER 3
 heading("CHAPTER 3. CORE IMPLEMENTATION AND CODE ANALYSIS", 1, page_break=True)
 heading("3.1 Architecture and Flow Logic", 2)
-para("SecureSign has three tiers (Figure 3.1a). The browser performs every operation that needs the private key. The "
+para("SecureSign has three tiers (Figure 3.1). The browser performs every operation that needs the private key. The "
      "FastAPI backend stores only public keys, enforces access control and re-checks every signature with the "
      "cryptography library before it records or forwards anything, and writes every security-relevant event to a "
      "server-signed, hash-chained evidence log. The database and file storage hold accounts, sessions, public keys, "
      "documents, the audit log and the evidence chain.")
-para("Flow of the signing workflow: (1) Alice registers; her password is hashed with Argon2id and she receives an HttpOnly "
-     "session cookie and a CSRF token. (2) Her browser generates an RSA-2048 or ECDSA P-256 key pair, encrypts the private key with a "
-     "password and offers it as a .key.json file. (3) To register the public key, the server issues a one-time random "
-     "challenge; the browser signs it, and the server links the key to Alice only if the proof verifies. (4) To sign, the "
-     "browser decrypts the key locally, signs the PDF bytes with RSA-PSS or ECDSA (the algorithm is fixed by the registered "
-     "key, never by the client) and produces a detached .sig file; the server re-verifies it and returns a signed receipt. "
-     "(5) When Alice sends the PDF and .sig to Bob, the server verifies them against Alice's registered key, stores them "
-     "in Bob's inbox and issues a delivery receipt; only the sender and the recipient can download or verify the document "
-     "and its receipts. (6) Bob verifies the document (which is also recorded) and can mark Alice's key as trusted after "
-     "comparing its fingerprint through another channel. (7) Any receipt can later be checked online or offline, and the "
-     "administrator can check the integrity of the whole chain.")
-para("Flow of the attack (Security Lab, Figure 3.1b): (1) a vulnerable invoice service draws its ECDSA nonce k once at "
-     "start-up; (2) it signs two invoice PDFs, and both signatures carry the same r because r = (k·G).x; (3) the attacker "
-     "groups the public signatures by r, finds the collision and solves two linear equations for k and then d; (4) the "
-     "recovered d is checked against the public key (d·G = Q); (5) d is imported into a normal cryptography private-key "
-     "object to sign a malicious invoice PDF; (6) the relying party verifies it with the real Q and accepts it. The fixed "
-     "scene swaps only the nonce source for RFC 6979 and re-runs the same pipeline unchanged, so any difference in the "
-     "outcome is caused by the patch alone.")
-figure("fig00_architecture.png", "3.1", "Architecture. (a) SecureSign production signing workflow. (b) Security Lab nonce-reuse attack flow and the RFC 6979 patch.")
+figure("fig00_architecture.png", "3.1", "Architecture of SecureSign Cloud and the threat each defense addresses.")
+para("Flow of the signing workflow (Figure 3.2): (1) Alice registers; her password is hashed with Argon2id and she receives "
+     "an HttpOnly session cookie and a CSRF token. (2) Her browser generates an RSA-2048 or ECDSA P-256 key pair, encrypts "
+     "the private key with a password and offers it as a .key.json file. (3) To register the public key, the server issues "
+     "a one-time random challenge; the browser signs it, and the server links the key to Alice only if the proof verifies. "
+     "(4) To sign, the browser decrypts the key locally, signs the PDF bytes with RSA-PSS or ECDSA (the algorithm is fixed "
+     "by the registered key, never by the client) and produces a detached .sig file; the server re-verifies it and returns "
+     "a signed receipt. (5) When Alice sends the PDF and .sig to Bob, the server verifies them against Alice's registered "
+     "key, stores them in Bob's inbox and issues a delivery receipt; only the sender and the recipient can download or "
+     "verify the document, and its receipts are visible only to them and to administrators. (6) Bob verifies the document, which is also recorded, and can mark Alice's key "
+     "as trusted after comparing its fingerprint through another channel. (7) Any receipt can later be checked online or "
+     "offline, and the administrator can check the integrity of the whole chain.")
+figure("flow_signing.png", "3.2", "Signing workflow: key registration with proof-of-possession, signing, delivery and receipts.", 6.0)
 heading("3.2 Demonstration GUI", 2)
-para("The SecureSign web app (Vietnamese interface) has a dashboard, key management, signing, verification, document "
-     "sending, an inbox, a personal audit history with a receipt for each recorded event and, for administrators, user "
-     "management and the evidence-log integrity check (Figures 3.2 and 3.3). Administrators can suspend accounts and "
-     "change roles, but cannot read users' private documents, and the last active administrator cannot be removed. "
-     "Every file picker shows the chosen file with its size and a remove (✕ Gỡ) button and accepts drag and drop.")
-figure("fig08_admin.png", "3.2", "Administrator view: accounts, roles, status, keys and documents per user.", 6.0)
-figure("fig09_history.png", "3.3", "Personal audit trail with a downloadable server-signed receipt for each recorded event.", 6.0)
-para("The Security Lab (/lab) tells the demonstration as a story so that a non-specialist audience can follow it. Four "
-     "columns show the actors (signer, public channel, attacker Eve, verifier). The presenter presses one button (or the → "
-     "key) per step; the step calls the real lab API, new cards appear in the column of the actor who acted, and a "
-     "plain-language explanation is shown at the top. Long numbers are displayed as short coloured fingerprints, so equal "
-     "values have equal colours: the audience can see at a glance that two signatures share the same r, or that the key "
-     "computed by Eve is identical to the service's private key. The page switches between English and Vietnamese, and "
-     "Show math reveals the equations and full values. Unlike our midterm prototype, the lab is part of the secured "
-     "application: it requires a signed-in session and the CSRF token, keeps its keys separately for each user, signs "
-     "real PDF bytes, and uses SecureSign's own verify_signature() and verify_proof_of_possession() where they apply.")
-table_caption("Table 3.1. Scenes of the Security Lab")
-table(["Scene", "Steps (one click each)"], [
-    ["1 · How it works", "Alice creates her keys → signs the contract PDF → Bob verifies (VALID) → Eve changes 1,000 to 9,000 USD (INVALID) → Eve signs with her own key (INVALID)"],
-    ["2 · The attack", "Service starts (bug: k reused) → signs invoice PDF #1001 → #1002 (same r) → Eve computes the private key (matches) → Eve's 1,000,000 USD invoice is accepted by the bank"],
-    ["3 · The fix", "Same five steps with RFC 6979: different r → wrong key → forgery rejected; plus a byte-for-byte cross-check with the cryptography library"],
-    ["4 · RSA padding", "Alice signs 100 and 50 with textbook RSA → Eve multiplies the signatures, 5,000 is accepted → the same trick against RSA-PSS is rejected"],
-    ["5 · Key registry", "Alice registers her key with proof-of-possession → Eve registers Alice's public key in a registry without proof (Alice's PDF now shows \"signed by Eve\") → Eve tries the same against SecureSign (rejected)"],
-    ["6 · Non-repudiation", "Alice signs and sends (three chained receipts) → Alice denies with a later-dated receipt signed by her own key (rejected) → an insider edits entry #2 (detected) → the insider recomputes every hash (still detected: no server signature)"],
-], [2000, 6787])
+para("The SecureSign web app (Vietnamese interface) has a dashboard, key management, signing, verification with a receipt "
+     "checker, document sending, an inbox, a personal audit history with a receipt for each recorded event and, for "
+     "administrators, user management and the evidence-log integrity check (Figures 3.3 and 3.4). Administrators can "
+     "suspend accounts and change roles, but cannot read users' private documents, and the last active administrator "
+     "cannot be removed. Every file picker shows the chosen file with its size and a remove (✕ Gỡ) button and accepts drag "
+     "and drop. Table 3.1 summarises the threats we analyse and where each defense is shown.")
+figure("fig08_admin.png", "3.3", "Administrator view: accounts, roles, status, keys and documents per user.", 6.0)
+figure("fig09_history.png", "3.4", "Personal audit trail with a downloadable server-signed receipt for each recorded event.", 6.0)
+table_caption("Table 3.1. Threats, defenses and where they are demonstrated")
+table(["Threat (attacker goal)", "SecureSign defense", "Shown in"], [
+    ["Tampering: change a signed PDF", "Signature over the exact PDF bytes, re-verified by the server and by the recipient", "Figures 4.7, 4.11"],
+    ["Key substitution: register another user's public key", "One-time challenge, proof-of-possession, unique key fingerprints", "Figure 4.8"],
+    ["Repudiation: deny or back-date a signature, edit the log", "Server-signed receipts, SHA-256 hash chain, offline verifier, admin integrity check", "Figures 4.9, 4.12–4.14"],
+    ["Private-key recovery from ECDSA nonce reuse", "Audited ECDSA in Web Crypto with a fresh nonce per signature", "Figure 4.10"],
+    ["Online password guessing with a spoofed X-Forwarded-For", "Rate limit keyed on the TCP peer address (fixed bug)", "Figure 5.1"],
+], [2900, 3700, 2187])
 heading("3.3 Key Code Snippets and Explanation", 2)
 subhead("Snippet 1: Key generation, private-key protection and signing in the browser (frontend/app.js)")
-code('''const ALGORITHMS = {
+code('''const ALGORITHMS = {          // label and importParams omitted here
   "RSA-PSS": {
     generate: {name: "RSA-PSS", modulusLength: 2048,
                publicExponent: new Uint8Array([1, 0, 1]),
                hash: "SHA-256"},
-    signParams: {name: "RSA-PSS", saltLength: 32}},
+    signParams: {name: "RSA-PSS", saltLength: PSS_SALT_LENGTH}},
   "ECDSA-P256": {
     generate: {name: "ECDSA", namedCurve: "P-256"},
     signParams: {name: "ECDSA", hash: "SHA-256"}}};
@@ -496,11 +471,11 @@ const iv = crypto.getRandomValues(new Uint8Array(12));
 const material = await crypto.subtle.importKey("raw",
     new TextEncoder().encode(password), "PBKDF2", false,
     ["deriveKey"]);
-const aesKey = await crypto.subtle.deriveKey(
-    {name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256"},
+const aesKey = await crypto.subtle.deriveKey({name: "PBKDF2", salt,
+    iterations: PBKDF2_ITERATIONS, hash: "SHA-256"},  // 310,000
     material, {name: "AES-GCM", length: 256}, false, ["encrypt"]);
-const encrypted = await crypto.subtle.encrypt(   // only this is saved
-    {name: "AES-GCM", iv}, aesKey, pkcs8);
+const encrypted = await crypto.subtle.encrypt(
+    {name: "AES-GCM", iv}, aesKey, pkcs8);   // only this is saved
 
 async function signAndCheck(alg, privateKey, publicKey, data) {
   const p = ALGORITHMS[alg].signParams;
@@ -511,18 +486,17 @@ async function signAndCheck(alg, privateKey, publicKey, data) {
   // ECDSA: Web Crypto returns r||s; server and OpenSSL expect DER
   return alg === "ECDSA-P256" ? ecdsaRawToDer(raw) : raw;
 }''')
-para("Explanation: the key pair is created by the browser's Web Crypto API, which uses the operating system's CSPRNG, "
-     "for either RSA-PSS 2048 or ECDSA P-256; both use SHA-256, so the same PDF digest is signed in both cases. The "
-     "private key is exported only to be encrypted immediately: PBKDF2-HMAC-SHA256 with a random 16-byte salt and "
-     "310,000 iterations turns the user's password into a 256-bit AES key, which makes offline password guessing slow, "
-     "and AES-256-GCM encrypts the key and adds an authentication tag, so a wrong password or a modified key file fails "
-     "to decrypt instead of producing a wrong key. Only the encrypted bundle is saved, and nothing secret is sent to the "
-     "server. signAndCheck() signs the PDF bytes (RSA-PSS with a 32-byte salt, or ECDSA with a fresh random nonce from the "
-     "browser), verifies the new signature with the public key before it leaves the browser, and converts ECDSA "
-     "signatures from the raw r||s form that Web Crypto returns to the DER form used by the server and OpenSSL. An ECDSA "
-     "signature is about 72 bytes, compared with 256 bytes for RSA-2048.")
+para("Explanation (error messages are shown in English here; the application displays them in Vietnamese):", indent=False, after=80)
+bullet("**ALGORITHMS:** only two schemes exist, RSA-PSS 2048 with e = 65537 and a 32-byte salt, and ECDSA on P-256, both with SHA-256. Fixing the parameters in one table means a user cannot pick a weak key size, curve or hash.")
+bullet("**generateKey(...):** the browser's Web Crypto API creates the key pair with the operating system's CSPRNG. The private key exists only inside the browser.")
+bullet("**exportKey(\"pkcs8\")**, **salt**, **iv:** the private key is exported only to be encrypted at once; the 16-byte salt and 12-byte IV are fresh random values, so two key files never share them.")
+bullet("**importKey(\"raw\", password) / deriveKey(PBKDF2):** PBKDF2-HMAC-SHA256 with 310,000 iterations turns the user's password into a 256-bit AES key, which makes every offline password guess expensive.")
+bullet("**encrypt(AES-GCM):** AES-256-GCM encrypts the key and adds an authentication tag, so a wrong password or a modified key file fails to decrypt instead of producing a wrong key. Only this ciphertext is saved in the .key.json file; nothing secret is sent to the server.")
+bullet("**signAndCheck(...):** signs the PDF bytes (RSA-PSS with a random salt, or ECDSA with a fresh random nonce from the browser), then immediately verifies the new signature with the public key from the same key file, so a damaged or mismatched key file is detected before anything is sent.")
+bullet("**ecdsaRawToDer(raw):** Web Crypto returns ECDSA signatures as raw r||s; converting them to DER makes them readable by the server and by OpenSSL. An ECDSA signature is about 72 bytes, compared with 256 bytes for RSA-2048.")
 subhead("Snippet 2: Server-side checks: proof-of-possession and re-verification (crypto_service.py, main.py)")
-code('''def verify_proof_of_possession(public_key, challenge, proof_b64):
+code('''def verify_proof_of_possession(public_key, challenge: str,
+                               proof_b64: str) -> bool:
     try:
         proof = base64.b64decode(proof_b64, validate=True)
         # RSA-PSS or ECDSA, chosen by the type of the registered key
@@ -539,8 +513,8 @@ challenge = db.scalar(select(KeyChallenge).where(
     KeyChallenge.expires_at > utc_now()))
 if not challenge:
     raise HTTPException(400, "Challenge invalid, expired or used.")
-if not verify_proof_of_possession(public_key, challenge.challenge_value,
-                                  payload.proof_signature):
+if not verify_proof_of_possession(public_key,
+        challenge.challenge_value, payload.proof_signature):
     raise HTTPException(400, "Could not prove ownership of the key.")
 challenge.used_at = utc_now()
 
@@ -549,166 +523,13 @@ result = verify_signature(pdf_bytes, signature_bytes,
                           key.public_key_pem.encode())
 if not result["valid"]:
     raise HTTPException(400, "Signature does not match PDF and key.")''')
-para("Explanation: a public key is public, so anyone can copy it from the directory. The server therefore creates a "
-     "random 32-byte challenge bound to the current user, valid for 5 minutes and usable once, and links a key to an "
-     "account only if the user can sign that challenge with the matching private key. This blocks the key-substitution "
-     "attack of lab scene 5, and the single-use challenge prevents replaying an old proof. Fingerprints are also unique, so "
-     "a key can belong to only one account. The server never trusts the browser's claim that a signature is valid: before "
-     "a signing event is recorded or a document is delivered, verify_signature() checks the PDF and .sig against the "
-     "sender's registered key with the cryptography library.")
-subhead("Snippet 3: The vulnerable signer and the private-key recovery (lab.py, attack.py)")
-code('''def start(self, req):            # vulnerable invoice-signing service
-    self.d, self.Q = E.generate_keypair()
-    self._k = secrets.randbelow(E.N - 1) + 1  # only ONCE: the BUG
-
-def sign(self, req):
-    pdf = make_pdf(_text(req), title="SecureSign Invoice")
-    k = self._k                              # same k for every PDF
-    r, s = E.ecdsa_sign(pdf, self.d, k)   # s = k^-1(H(pdf)+r*d) mod n
-
-def recover_nonce(m1, sig1, m2, sig2):    # attacker: public data
-    (r1, s1), (r2, s2) = sig1, sig2
-    if r1 != r2:
-        raise ValueError("r values differ: the nonce was NOT reused")
-    h1, h2 = hash_to_int(m1), hash_to_int(m2)
-    return (h1 - h2) * inv(s1 - s2, N) % N
-
-def recover_private_key(m1, sig1, k):
-    r, s1 = sig1
-    return (s1 * k - hash_to_int(m1)) * inv(r, N) % N''')
-para("Explanation: the private key d comes from a CSPRNG, so the key itself is strong. The bug is that the nonce k is drawn "
-     "only once and stored. Every call to sign() therefore computes R = k·G with the same k, so the public value r = R.x "
-     "mod n is identical for every PDF, which tells anyone that k was reused. The signing equation is the standard ECDSA "
-     "formula (FIPS 186-5) and every signature verifies, which is why the bug goes unnoticed in normal testing. The attacker "
-     "subtracts the two equations: s1 − s2 = k⁻¹(h1 − h2) cancels r·d, so k = (h1 − h2)(s1 − s2)⁻¹ mod n, and then the first "
-     "equation has a single unknown and gives d = (s1·k − h1)·r⁻¹ mod n. The guard r1 ≠ r2 → ValueError is what makes the "
-     "attack fail against the patched signer. This is the same class of bug as the 2010 Sony PlayStation 3 key leak.")
-heading("3.4 Algorithms and Cryptography Used", 2)
-table_caption("Table 3.2. Algorithms used and rationale")
-table(["Algorithm", "Where used", "Why we chose it"], [
-    ["RSASSA-PSS, RSA-2048, e = 65537, SHA-256, MGF1-SHA256, 32-byte salt (RFC 8017)", "SecureSign signing and verification (user choice), proof-of-possession, lab scenes 1, 4, 5, 6", "Provably secure RSA signature encoding, supported natively by Web Crypto and by the cryptography library. The random salt and hash-based padding remove the multiplicative structure of textbook RSA. The server rejects keys below 2048 or above 4096 bits and any exponent other than 65537."],
-    ["SHA-256 (FIPS 180-4)", "PDF digests, key fingerprints, token hashes", "Collision-resistant 256-bit digest; MD5 and SHA-1 were rejected because practical collisions exist. A one-character change in the PDF changes about half of the 256 bits."],
-    ["PBKDF2-HMAC-SHA256 (310,000 iterations) + AES-256-GCM", "Encrypted private-key file in the browser", "The only password-based KDF and authenticated cipher available in every browser's Web Crypto API. GCM detects any modification of the key file."],
-    ["Argon2id (t = 3, 64 MiB, p = 2)", "Account passwords on the server", "Memory-hard hash recommended by OWASP; makes GPU password cracking expensive if the database leaks."],
-    ["ECDSA over NIST P-256 with SHA-256 (DER)", "SecureSign signing and verification (user choice), lab scenes 1–3, console demos", "The most widely deployed ECC signature: about 128-bit security with a 256-bit key and a ~72-byte signature (RSA needs about 3072 bits for the same level). Its dependence on a secret per-signature nonce is exactly the weakness we demonstrate; the browser's implementation draws a fresh random nonce for every signature."],
-    ["ECDSA P-256 server receipts + SHA-256 hash chain", "Evidence log, receipts, lab scene 6", "The server signs each receipt (time, PDF digest, signer key) so it cannot be forged or back-dated; linking each entry to the SHA-256 of the previous one makes deletions, insertions and edits detectable. Small signatures keep the log compact."],
-    ["RFC 6979 deterministic nonce (HMAC-DRBG / HMAC-SHA256)", "Lab scene 3 (the patch)", "k = f(d, H(m)) is unique per message and unpredictable without d, and needs no runtime RNG, which also protects against broken or low-entropy RNGs."],
-    ["Textbook RSA s = m^d mod n", "Lab scene 4 only (insecure baseline)", "Shown only as a counter-example to explain why padding is mandatory."],
-], [2400, 2000, 4387])
-para("Implementation choices: SecureSign never implements cryptography itself. The browser uses Web Crypto and the server "
-     "uses the cryptography library, which wraps OpenSSL. Our own P-256 code exists only in the Security Lab, because no "
-     "audited library lets the caller choose k. To make sure this educational code is correct, (a) our public keys match "
-     "the library's for the same d, (b) our signatures verify under the library, and (c) our RFC 6979 output matches the "
-     "official test vector (RFC 6979 A.2.5) and is byte-identical to cryptography's deterministic_signing=True.")
-
-# ---------------- CHAPTER 4
-heading("CHAPTER 4. STEP-BY-STEP DEMONSTRATION WALKTHROUGH", 1, page_break=True)
-para("The live demonstration runs on one laptop: start the server, open SecureSign in two browser windows for Alice and "
-     "Bob, then open the Security Lab and press → once per step. Every value on screen is computed live. Table 4.1 maps the "
-     "three steps required by the course template to the demonstration.")
-table_caption("Table 4.1. Mapping of the demonstration steps")
-table(["Template step", "SecureSign / Security Lab", "Console"], [
-    ["Step 1: Initialization", "Tests; SecureSign workflow (register, key + proof-of-possession, sign, send, verify, tampered copy); lab scene 1; lab scene 2 steps 1–3 (service starts, two invoice PDFs with the same r)", "pytest -v, demo1, start of demo2"],
-    ["Step 2: Execution / The attack", "Lab scene 2 step 4: Eve computes the private key", "demo2 steps 3–4"],
-    ["Step 3: Verification / The result", "Lab scene 2 step 5: forged invoice accepted; re-checked with OpenSSL", "demo2 steps 5–6, openssl dgst"],
-    ["Patch (Chapter 5)", "Lab scene 3 (RFC 6979), scene 4 (RSA-PSS), scene 5 (proof-of-possession), scene 6 and receipts (non-repudiation); security fixes", "demo3, demo4, verify_receipt.py, test_hardening.py"],
-], [2300, 4300, 2187])
-heading("4.1 Step 1: Initialization", 2)
-para("Description: install the dependencies and run the test suite to prove that the system is correct before the demo "
-     "(Figure 4.1: 37 of 37 tests pass, including the official RFC 6979 test vector, multi-user isolation and every lab "
-     "scene). Start the server; for the live demo we register Alice and Bob from scratch to show the full key set-up (the demo accounts of Table 2.3 skip this) (Figure 4.2). Alice creates an RSA-2048 key pair "
-     "in the browser, downloads the encrypted private key and registers the public key; the success message confirms that "
-     "the proof-of-possession was verified (Figure 4.3). She signs the contract PDF: the browser decrypts the key locally, "
-     "signs, and the server re-verifies the signature before recording it and returns a server-signed, timestamped receipt "
-     "(Figure 4.4). She sends the PDF and the .sig to Bob (Figure 4.5).")
-figure("fig01_tests.png", "4.1", "37/37 automated tests pass (RSA and ECDSA, multi-user isolation, receipts and evidence chain, Security Lab, security fixes, demo accounts).", 6.0)
-figure("fig02_dashboard.png", "4.2", "SecureSign dashboard after registration.", 6.0)
-figure("fig03_keys.png", "4.3", "Key pair generated in the browser; the public key is registered after a successful proof-of-possession.", 6.0)
-figure("fig04_sign.png", "4.4", "PDF signed with RSA-PSS in the browser; digest, key fingerprint, algorithm, signature size and the server receipt number.", 6.0)
-figure("fig05_send.png", "4.5", "Alice sends the signed PDF to Bob; the server verifies the signature before delivery.", 6.0)
-para("Bob compares the fingerprint of Alice's key and marks it as trusted, then verifies the document in his inbox: the "
-     "signature is valid and the key is trusted (Figure 4.6). He then verifies a copy in which 1,000 USD was changed to "
-     "9,000 USD with the same .sig: the signature is rejected (Figure 4.7). Lab scene 1 shows the same integrity, "
-     "authentication and non-repudiation checks for both RSA-PSS and ECDSA (Figure 4.8). Finally, start lab scene 2: the "
-     "vulnerable invoice service generates its key pair (the private key is blurred, so the audience can compare it later), "
-     "signs invoice PDFs #1001 and #1002, and both signatures verify while sharing the same r value (Figure 4.10, left).")
-figure("fig06_inbox_verified.png", "4.6", "Bob's inbox: the received PDF is verified as valid and signed with a key he trusts.", 6.0)
-figure("fig07_verify_tampered.png", "4.7", "A tampered copy (1,000 → 9,000 USD) with the original signature is rejected.", 6.0)
-figure("fig10_lab_correct.png", "4.8", "Lab scene 1: genuine contract PDF accepted; tampered PDF and Eve's own signature rejected.", 6.0)
-heading("4.2 Step 2: Execution / The Attack", 2)
-para("Description: the attacker scans the public signatures and finds two with the same r, which proves that k was reused. "
-     "Applying k = (h1 − h2)/(s1 − s2) mod n and d = (s1·k − h1)/r mod n recovers the 256-bit private key in milliseconds. "
-     "It is identical to the service's hidden d, and d·G equals the published public key Q (Figure 4.9). In the lab this is "
-     "scene 2, step 4: the key computed by Eve appears with the same colour fingerprint as the service's private key, "
-     "which is then revealed for comparison; Show math displays both equations and the full values.")
-figure("fig11_demo2_attack.png", "4.9", "Console: nonce and private key recovered from two public signatures.", 5.6)
-heading("4.3 Step 3: Verification / The Result", 2)
-para("Description: Eve creates the PDF \"Invoice #6666: pay 1,000,000 USD to Eve's account\" and signs it with the stolen "
-     "key. The bank verifies it with the service's real public key using cryptography's ECDSA verify(), and the result is "
-     "VALID (Figure 4.10). To show that this is not a quirk of our own code, we download the forged PDF, its signature and "
-     "the public key from the lab and check them with OpenSSL: \"Verified OK\". Changing one amount in the forged PDF makes "
-     "OpenSSL fail, so the forgery is a genuine signature on exactly that document (Figure 4.11). The forged invoice cannot "
-     "be told apart from a real one, so integrity, authentication and non-repudiation are all broken. This meets the attack "
-     "success criterion defined in Section 5.2 of our midterm report.")
-figure("fig12_lab_attack.png", "4.10", "Lab scene 2 after all five steps: identical r values, private key recovered, forged 1,000,000 USD invoice accepted.", 6.0)
-figure("fig13_openssl_forgery.png", "4.11", "Independent check: OpenSSL accepts the forged invoice PDF and rejects an edited copy.", 6.0)
-
-# ---------------- CHAPTER 5
-heading("CHAPTER 5. VULNERABILITY PATCH AND DEFENSE MECHANISM", 1, page_break=True)
-heading("5.1 The Patch: RFC 6979 Deterministic Nonces", 2)
-para("The root cause is a nonce that is not unique per message. We replaced it with RFC 6979 deterministic nonce "
-     "generation, the same approach used by libsecp256k1 (Bitcoin), Ed25519 by design, and the cryptography library's "
-     "deterministic_signing option. Only the nonce source changes. The key, curve, hash and signing equation stay the same.")
-code('''def sign(self, req):                        # patched service
-    pdf = make_pdf(_text(req), title="SecureSign Invoice")
-    k = E.rfc6979_nonce(self.d, pdf)      # FIX: k = f(d, H(pdf))
-    r, s = E.ecdsa_sign(pdf, self.d, k)
-
-def rfc6979_nonce(d: int, message: bytes) -> int:
-    h1 = hashlib.sha256(message).digest()
-    V = b"\\x01" * 32
-    K = b"\\x00" * 32
-    seed = _int2octets(d) + _bits2octets(h1)
-    K = hmac.new(K, V + b"\\x00" + seed, hashlib.sha256).digest()
-    V = hmac.new(K, V, hashlib.sha256).digest()
-    K = hmac.new(K, V + b"\\x01" + seed, hashlib.sha256).digest()
-    V = hmac.new(K, V, hashlib.sha256).digest()
-    while True:
-        V = hmac.new(K, V, hashlib.sha256).digest()
-        k = int.from_bytes(V, "big")
-        if 1 <= k < N:
-            return k
-        K = hmac.new(K, V + b"\\x00", hashlib.sha256).digest()
-        V = hmac.new(K, V, hashlib.sha256).digest()''')
-para("Explanation: K and V are the state of an HMAC-DRBG seeded with the private key d and the PDF hash h1. Because "
-     "HMAC-SHA256 is a pseudo-random function keyed by secret material, k is (1) the same only when both d and the PDF are "
-     "the same, in which case the signature is also the same and nothing new leaks, (2) different and unrelated for any "
-     "different PDF, and (3) unpredictable to anyone who does not know d. The rejection loop keeps 1 ≤ k < n. No runtime "
-     "random number generator is involved, so a broken, seeded or low-entropy RNG can no longer leak the key.")
-heading("5.2 Verification of the Patch", 2)
-para("Re-running the unchanged attack pipeline against the patched signer gives: r1 ≠ r2, so recover_nonce() refuses to "
-     "run. Forcing the formulas anyway yields a guess d′ with d′·G ≠ Q. The forgery made with d′ is REJECTED by the bank. "
-     "Our signature is also byte-identical to the one produced by cryptography with deterministic_signing=True, which "
-     "confirms the patch matches the standard (Figures 5.1 and 5.2).")
-figure("fig14_demo3_defense.png", "5.1", "Console: the same attack fails against the RFC 6979 signer.", 5.6)
-figure("fig15_lab_defense.png", "5.2", "Lab scene 3: different r values, wrong key, forgery rejected, output byte-identical to the audited library.", 6.0)
-heading("5.3 Related Defenses: RSA Padding and Proof-of-Possession", 2)
-para("Textbook RSA signatures are multiplicative: from sign(100) and sign(50) the attacker computes sign(5000) = s1·s2 mod n "
-     "without the private key, and it verifies. With RSA-PSS, which SecureSign uses exclusively, the same product is "
-     "rejected because each signature covers a randomly salted, hashed encoding rather than the raw number (Figure 5.3).")
-figure("fig16_lab_rsa.png", "5.3", "Lab scene 4: the multiplied textbook RSA signature is accepted for 5,000; the same trick is rejected by RSA-PSS.", 6.0)
-para("A signature only proves that the holder of a given public key signed; the key registry decides who that holder is. "
-     "In a registry that stores (public key → owner) without any check, Eve can upload Alice's public key under her own "
-     "account. Alice's PDFs still verify mathematically, but now appear as \"signed by Eve\", so Eve can claim Alice's "
-     "contracts and Alice can deny them, although no private key leaked. SecureSign's registration requires the one-time "
-     "challenge signature shown in Snippet 2; Eve can only sign it with her own key, so the registration is rejected "
-     "(Figure 5.4). The same attempt through the real POST /api/keys endpoint is covered by an automated test.")
-figure("fig17_lab_keysub.png", "5.4", "Lab scene 5: key substitution succeeds against a registry without proof-of-possession and is rejected by SecureSign.", 6.0)
-heading("5.4 Non-Repudiation: Signed Receipts and a Hash-Chained Evidence Log", 2)
-para("A valid signature proves who signed, but not when, and an ordinary log can be edited by anyone who controls the "
-     "database, so a signer could still claim \"I never signed that\" or \"I signed a later version\". SecureSign therefore "
-     "records every key registration and revocation, PDF signature, delivery and verification by the recipient as an "
-     "evidence entry. Each entry is a receipt that the server signs and links to the previous entry (evidence.py):")
+para("Explanation (error messages translated from Vietnamese):", indent=False, after=80)
+bullet("**verify_proof_of_possession():** decodes the proof strictly (validate=True rejects malformed Base64) and verifies it as a signature on the challenge with the submitted public key. The scheme follows the key type, so the client cannot choose a weaker algorithm. Any decoding or verification error returns False instead of raising, so no error path can accept a key.")
+bullet("**select(KeyChallenge)...:** the challenge must belong to the logged-in user, must not have been used and must not have expired (5 minutes). A proof made for someone else's challenge, or an old proof, is useless.")
+bullet("**if not challenge / if not verify_proof_of_possession(...):** a public key is public, so anyone can copy it from the directory; only the holder of the matching private key can sign the fresh challenge. This is what blocks the key-substitution attack (Attack 2).")
+bullet("**challenge.used_at = utc_now():** marks the challenge as consumed, so the same proof cannot be replayed. Key fingerprints are also unique, so a key can belong to only one account.")
+bullet("**verify_signature(...) in /api/documents/send:** the server never trusts the browser's claim that a signature is valid. Before a signing event is recorded or a document is delivered, it re-checks the PDF and .sig against the sender's registered key with the audited cryptography library, which stops a tampered PDF (Attack 1) from ever reaching the recipient.")
+subhead("Snippet 3: Signed receipts in a hash-chained evidence log (evidence.py)")
 code('''def build_entry(key, seq, prev_hash, event, actor, details,
                 time_iso=None):
     body = {"type": RECEIPT_TYPE, "version": 1, "seq": seq,
@@ -723,39 +544,160 @@ code('''def build_entry(key, seq, prev_hash, event, actor, details,
 
 def verify_entries(entries, public_key):
     prev_hash, expected_seq = GENESIS_HASH, 1
+
+    def broken(e, reason):        # entries before e are intact
+        return {"ok": False, "count": expected_seq - 1,
+                "broken_at": e["seq"], "reason": reason}
+
     for e in entries:
-        body = json.loads(e["body"])
-        if e["seq"] != expected_seq or body["seq"] != e["seq"]:
-            return broken(e, "missing or reordered entry")
-        if body["prev_hash"] != prev_hash:
-            return broken(e, "chain cut or entry inserted")
+        body = parse_body(e)
+        if e["seq"] != expected_seq or body.get("seq") != e["seq"]:
+            return broken(e, "Missing or reordered entry.")
+        if body.get("prev_hash") != prev_hash:
+            return broken(e, "prev_hash mismatch: chain cut.")
         if sha256_hex(e["body"].encode()) != e["entry_hash"]:
-            return broken(e, "content edited")
+            return broken(e, "Content edited: SHA-256 mismatch.")
         if not signature_ok(public_key, e["body"], e["signature"]):
-            return broken(e, "forged entry: server signature invalid")
+            return broken(e, "Server signature invalid.")
         prev_hash, expected_seq = e["entry_hash"], e["seq"] + 1
-    return {"ok": True, "count": expected_seq - 1}''')
-para("Explanation: the receipt body fixes the event, the server time, the actor and the details (the PDF's SHA-256, the "
-     "signature's SHA-256 and the signer's key fingerprint and algorithm). canonical() makes the encoding deterministic, so "
-     "the same bytes are hashed, signed and later verified. prev_hash is the entry_hash of the previous entry, so every "
-     "entry commits to the whole history before it; deleting, inserting, reordering or editing any entry breaks the chain "
-     "at that point. The server signs each body with its ECDSA P-256 receipt key, so recomputing all hashes after an edit "
-     "is still detected without that key. Users download their receipts from the signing page, the inbox or the history; "
-     "a receipt can be checked in the app, which also confirms that it is still part of the server's chain (Figure 5.6), "
-     "or offline with demos/verify_receipt.py and the server's public key from GET /api/receipts/server-key, which does "
-     "not trust the key embedded in the file (Figure 5.7). Administrators can run the integrity check over the whole "
-     "chain (Figure 5.8). Lab scene 6 shows the attacks this stops (Figure 5.5): Alice presents a later-dated receipt "
-     "signed with her own key and it is rejected; an insider edits entry #2 and the hash check fails; the insider "
-     "recomputes every hash and the server-signature check still fails, while Bob's downloaded receipt no longer matches "
-     "the log. Together, the PDF signature (who), the receipt (what and when) and the chain (the history was not "
-     "rewritten) give the non-repudiation that our midterm report described.")
-figure("fig18_lab_evidence.png", "5.5", "Lab scene 6: a fake later-dated receipt is rejected, and editing the log is detected even after all hashes are recomputed.", 6.0)
-figure("fig19_receipt_verify.png", "5.6", "Bob checks the delivery receipt in SecureSign: server signature valid, entry still in the chain.", 6.0)
-figure("fig20_verify_receipt_cli.png", "5.7", "Offline verification of Alice's signing receipt with the trusted server key and the original PDF.", 5.8)
-figure("fig21_admin_evidence.png", "5.8", "Administrator integrity check of the whole evidence chain.", 6.0)
-heading("5.5 Security Fixes Made During Integration", 2)
+    return {"ok": True, "count": expected_seq - 1, "broken_at": None,
+            "head_hash": prev_hash, "reason": OK_REASON}''')
+para("Explanation (error messages translated from Vietnamese):", indent=False, after=80)
+bullet("**body = {...}:** each receipt fixes the event, the server time, the actor and the details (the PDF's SHA-256, the signature's SHA-256 and the signer's key fingerprint and algorithm), plus **prev_hash**, the entry_hash of the previous entry. Through prev_hash every entry commits to the whole history before it.")
+bullet("**canonical(body):** JSON with sorted keys and no spaces, so exactly the same bytes are hashed, signed and later verified by anyone.")
+bullet("**key.sign(...ECDSA(SHA256)):** the server signs the receipt with its ECDSA P-256 receipt key. Only the server can produce a valid receipt, so a user cannot forge or back-date one, and the server cannot later deny having issued it.")
+bullet("**verify_entries():** walks the chain in order. A wrong sequence number means an entry was deleted or reordered; a prev_hash mismatch means the chain was cut or an entry inserted; a SHA-256 mismatch means an entry was edited; an invalid server signature means the entry was rewritten, even if the attacker recomputed every hash (Attack 3). broken() reports the first bad entry and how many entries before it are intact.")
+bullet("Entries are appended under a lock (and a PostgreSQL advisory lock in deployment), so two requests can never create the same sequence number.")
+heading("3.4 Algorithms and Cryptography Used", 2)
+table_caption("Table 3.2. Algorithms used and rationale")
+table(["Algorithm", "Where used", "Why we chose it"], [
+    ["RSASSA-PSS, RSA-2048, e = 65537, SHA-256, MGF1-SHA256, 32-byte salt (RFC 8017)", "SecureSign signing and verification (user choice), proof-of-possession", "Provably secure RSA signature encoding, supported natively by Web Crypto and by the cryptography library. The random salt and hash-based padding remove the multiplicative structure of textbook RSA. The server rejects keys below 2048 or above 4096 bits and any exponent other than 65537."],
+    ["SHA-256 (FIPS 180-4)", "PDF digests, key fingerprints, token hashes", "Collision-resistant 256-bit digest; MD5 and SHA-1 were rejected because practical collisions exist. A one-character change in the PDF changes about half of the 256 bits."],
+    ["PBKDF2-HMAC-SHA256 (310,000 iterations) + AES-256-GCM", "Encrypted private-key file in the browser", "The only password-based KDF and authenticated cipher available in every browser's Web Crypto API. GCM detects any modification of the key file."],
+    ["Argon2id (t = 3, 64 MiB, p = 2)", "Account passwords on the server", "Memory-hard hash recommended by OWASP; makes GPU password cracking expensive if the database leaks."],
+    ["ECDSA over NIST P-256 with SHA-256 (DER)", "SecureSign signing and verification (user choice)", "The most widely deployed ECC signature: about 128-bit security with a 256-bit key and a ~72-byte signature (RSA needs about 3072 bits for the same level). Its dependence on a secret per-signature nonce is exactly the weakness we analyse in Attack 4; the browser's implementation draws a fresh random nonce for every signature."],
+    ["ECDSA P-256 server receipts + SHA-256 hash chain", "Evidence log and receipts", "The server signs each receipt (time, PDF digest, signer key) so it cannot be forged or back-dated; linking each entry to the SHA-256 of the previous one makes deletions, insertions and edits detectable. Small signatures keep the log compact."],
+    ["RFC 6979 deterministic nonce (HMAC-DRBG / HMAC-SHA256)", "Recommended ECDSA nonce generation (analysis in Section 4.2)", "k = f(d, H(m)) is unique per message and unpredictable without d, and needs no runtime RNG, which also protects against broken or low-entropy RNGs."],
+], [2400, 2000, 4387])
+para("Implementation choices: SecureSign never implements cryptography itself. The browser uses Web Crypto and the server "
+     "uses the cryptography library, which wraps OpenSSL. ECDSA signatures from the browser are converted to DER, so "
+     "the same .sig file is also accepted by OpenSSL, which we used as an independent check.")
+
+# ---------------- CHAPTER 4
+heading("CHAPTER 4. STEP-BY-STEP DEMONSTRATION WALKTHROUGH", 1, page_break=True)
+para("The demonstration runs on one laptop: start the server and open SecureSign in two browser windows for Alice and "
+     "Bob (or sign in with the demo accounts of Table 2.3). Step 1 shows the normal workflow; Step 2 explains each attack "
+     "with a flow diagram; Step 3 shows, in the running system, what happens when the attack is tried. Table 4.1 maps the "
+     "three steps required by the course template to the demonstration.")
+table_caption("Table 4.1. Mapping of the demonstration steps")
+table(["Template step", "Demonstration", "Evidence"], [
+    ["Step 1: Initialization", "Tests; register Alice and Bob; key pair + proof-of-possession; sign a contract PDF; send it; Bob verifies", "Figures 4.1–4.6"],
+    ["Step 2: Execution / The attack", "Attack flows: tampering, key substitution, repudiation and log tampering, ECDSA nonce reuse", "Figures 4.7–4.10"],
+    ["Step 3: Verification / The result", "Tampered PDF rejected; key substitution rejected; receipt verified in the app and offline; evidence-chain integrity check", "Figures 4.11–4.14"],
+    ["Defense (Chapter 5)", "How each defense works, the security fixes, and how an attacker might still try to bypass them", "Figure 5.1, Table 5.1"],
+], [2300, 4300, 2187])
+heading("4.1 Step 1: Initialization", 2)
+para("Description: install the dependencies and run the test suite to prove that the system is correct before the demo "
+     "(Figure 4.1: 21 of 21 tests pass, covering RSA and ECDSA verification, multi-user isolation, receipts and the "
+     "evidence chain, the receipt-key configuration, the demo accounts and the security fixes). Start the server; for the live demo we register Alice and "
+     "Bob from scratch to show the full key set-up (the demo accounts skip this) (Figure 4.2). Alice creates an RSA-2048 "
+     "key pair in the browser, downloads the encrypted private key and registers the public key; the success message "
+     "confirms that the proof-of-possession was verified (Figure 4.3). She signs the contract PDF: the browser decrypts the "
+     "key locally, signs, and the server re-verifies the signature before recording it and returns a server-signed, "
+     "timestamped receipt (Figure 4.4). She sends the PDF and the .sig to Bob (Figure 4.5). Bob compares the fingerprint of "
+     "Alice's key, marks it as trusted and verifies the document in his inbox: the signature is valid and the key is "
+     "trusted (Figure 4.6).")
+figure("fig01_tests.png", "4.1", "21/21 automated tests pass (RSA and ECDSA, multi-user isolation, receipts and evidence chain, security fixes, demo accounts).", 6.0)
+figure("fig02_dashboard.png", "4.2", "SecureSign dashboard after registration.", 6.0)
+figure("fig03_keys.png", "4.3", "Key pair generated in the browser; the public key is registered after a successful proof-of-possession.", 6.0)
+figure("fig04_sign.png", "4.4", "PDF signed with RSA-PSS in the browser; digest, key fingerprint, algorithm, signature size and the server receipt number.", 6.0)
+figure("fig05_send.png", "4.5", "Alice sends the signed PDF to Bob; the server verifies the signature before delivery.", 6.0)
+figure("fig06_inbox_verified.png", "4.6", "Bob's inbox: the received PDF is verified as valid and signed with a key he trusts.", 6.0)
+heading("4.2 Step 2: Execution / The Attack", 2)
+para("Description: each attack is described as a flow between the actors. The diagrams show the attacker's steps in red "
+     "and SecureSign's checks in green.")
+subhead("Attack 1: Tampering with a signed PDF (integrity)")
+para("Eve intercepts the contract and changes 1,000 USD to 9,000 USD, then forwards the edited PDF with Alice's original "
+     ".sig file (Figure 4.7). She cannot produce a new signature, because that requires Alice's private key, which never "
+     "leaves Alice's browser. In the demonstration we play Eve by uploading demo_data/contract-demo-tampered.pdf together "
+     "with the original signature on the verification page.")
+figure("flow_tamper.png", "4.7", "Attack 1 flow: tampering with a signed PDF.", 6.0)
+subhead("Attack 2: Key substitution (authentication)")
+para("A signature only proves that the holder of a given public key signed; the key registry decides who that holder is. "
+     "Eve downloads Alice's public key from the directory (public keys are public) and tries to register it under her own "
+     "account (Figure 4.8). If the registry accepted it, every PDF Alice signs would verify as \"signed by Eve\", so Eve "
+     "could claim Alice's contracts and Alice could deny them, without any private key being stolen.")
+figure("flow_keysub.png", "4.8", "Attack 2 flow: key substitution, and the proof-of-possession check that rejects it.", 6.0)
+subhead("Attack 3: Repudiation and log tampering (non-repudiation)")
+para("After signing, Alice claims that she never signed the contract, or that she signed it a week later, and presents a "
+     "\"receipt\" with a later date that she signed with her own key. Separately, an insider with database access edits "
+     "the evidence entry of the signature, and then recomputes every hash so that the chain looks consistent (Figure 4.9). "
+     "We try both against the running system: Bob's downloaded receipt is checked in the app and offline, and the "
+     "administrator runs the integrity check over the whole chain.")
+figure("flow_repudiation.png", "4.9", "Attack 3 flow: repudiation with a fake receipt, and editing the evidence log.", 6.0)
+subhead("Attack 4: ECDSA nonce reuse (analysis)")
+para("ECDSA needs a new secret nonce k for every signature. A signer that reuses k produces two signatures with the same r, "
+     "and anyone who sees two signed messages can compute k = (h1 − h2)/(s1 − s2) mod n and then the private key "
+     "d = (s1·k − h1)/r mod n, after which every forgery verifies (Figure 4.10). This is the attack defined in our midterm "
+     "plan and the cause of the 2010 Sony PlayStation 3 key leak. SecureSign does not implement ECDSA itself: the browser's "
+     "Web Crypto implementation draws a fresh secret nonce for every signature, so two SecureSign signatures never share r "
+     "and the two equations contain three unknowns.")
+figure("flow_nonce.png", "4.10", "Attack 4 flow: private-key recovery from a reused ECDSA nonce, and why SecureSign's signatures are not affected.", 6.0)
+heading("4.3 Step 3: Verification / The Result", 2)
+para("Description: Attack 1 fails. Bob verifies the tampered copy with Alice's original signature and SecureSign reports "
+     "the signature as invalid, because the SHA-256 of the edited PDF differs from the hash Alice signed (Figure 4.11). The "
+     "same check runs on the server before any signature is recorded or any document is delivered.")
+figure("fig07_verify_tampered.png", "4.11", "Attack 1 result: the tampered copy (1,000 → 9,000 USD) with the original signature is rejected.", 6.0)
+para("Attack 2 fails. The server sends Eve a fresh one-time challenge; she can only sign it with her own private key, so "
+     "verify_proof_of_possession() rejects the registration, and Alice's key fingerprint is already owned by Alice "
+     "(Figure 4.8). The same attempt through the real POST /api/keys endpoint is covered by an automated test, and Eve's "
+     "key list stays empty.")
+para("Attack 3 fails. Bob's receipt for the delivery is valid: it is signed by the SecureSign receipt key and is still part "
+     "of the server's chain, and it fixes who sent which PDF (SHA-256) at what time (Figure 4.12). Alice's own receipt is "
+     "rejected because it is not signed by the SecureSign key. A judge who does not trust the server can check Alice's "
+     "signing receipt offline with demos/verify_receipt.py, the server's public key and the original PDF (Figure 4.13). "
+     "The administrator's integrity check walks the whole chain (Figure 4.14); editing an entry makes it report the exact "
+     "entry where the hash no longer matches, and recomputing the hashes is reported as an invalid server signature, as "
+     "shown in the flow of Figure 4.9 and tested automatically against the real database.")
+figure("fig19_receipt_verify.png", "4.12", "Attack 3 result: Bob's delivery receipt is valid and still in the server's chain.", 6.0)
+figure("fig20_verify_receipt_cli.png", "4.13", "Offline verification of Alice's signing receipt with the trusted server key and the original PDF.", 5.8)
+figure("fig21_admin_evidence.png", "4.14", "Administrator integrity check of the whole evidence chain.", 6.0)
+para("Attack 4 does not apply to SecureSign, for the reason shown in the lower half of Figure 4.10: every ECDSA signature "
+     "carries a different r, so the key cannot be solved from public data.")
+
+# ---------------- CHAPTER 5
+heading("CHAPTER 5. VULNERABILITY PATCH AND DEFENSE MECHANISM", 1, page_break=True)
+heading("5.1 Integrity and Authentication", 2)
+para("Integrity comes from signing the exact PDF bytes through SHA-256: any change to the file changes the digest, and the "
+     "signature no longer verifies. SecureSign never trusts the client's claim that a signature is valid; "
+     "verify_signature() re-checks it with the cryptography library and the sender's registered key before a signing "
+     "event is recorded, before a document is delivered and whenever the recipient verifies it (Snippet 2). The algorithm "
+     "is taken from the registered key, so a client cannot downgrade a key to another scheme, and the key policy rejects "
+     "RSA keys outside 2048–4096 bits, exponents other than 65537 and elliptic curves other than P-256.")
+para("Authentication comes from binding each public key to exactly one account. Registration requires a signature on a "
+     "random 32-byte challenge that belongs to the current user, expires after 5 minutes and can be used once, so only the "
+     "holder of the private key can register it and an old proof cannot be replayed (Snippet 2, Attack 2). Key "
+     "fingerprints are unique across accounts, revoked keys cannot be used for new documents, and each user marks other "
+     "users' keys as trusted only after comparing fingerprints through another channel.")
+heading("5.2 Non-Repudiation: Signed Receipts and a Hash-Chained Evidence Log", 2)
+para("A valid signature proves who signed, but not when, and an ordinary log can be edited by anyone who controls the "
+     "database. SecureSign therefore records every key registration and revocation, PDF signature, delivery and "
+     "verification by the recipient as an evidence entry (Snippet 3). Users download their receipts from the signing page, "
+     "the inbox or the history. A receipt can be checked in the app, which also confirms that it is still part of the "
+     "server's chain, or offline with demos/verify_receipt.py and the server's public key from GET /api/receipts/server-key; "
+     "the offline verifier deliberately ignores the key embedded in the receipt file, otherwise anyone could sign a fake "
+     "receipt with their own key and embed that key. Together, the PDF signature (who), the receipt (what and when) and the "
+     "chain (the history was not rewritten) give the non-repudiation that our midterm report described.")
+heading("5.3 ECDSA Nonces", 2)
+para("The nonce-reuse attack of Figure 4.10 is a property of the signer's implementation, not of ECDSA. SecureSign relies "
+     "on audited implementations only: Web Crypto in the browser, which draws a fresh nonce from the operating system's "
+     "CSPRNG for every signature, and the cryptography library on the server for verification and receipts. Where a library "
+     "allows it, the recommended alternative is RFC 6979, which derives k = HMAC-DRBG(d, H(m)): the nonce is unique for "
+     "every message and unpredictable without the private key, and no runtime random generator is needed, so a broken or "
+     "low-entropy RNG can no longer leak the key. Ed25519 (RFC 8032) is deterministic by design.")
+heading("5.4 Security Fixes Made During Integration", 2)
 para("While reviewing the SecureSign code for this report we found three security bugs. Each was fixed and is covered by a "
-     "regression test in tests/test_hardening.py (Table 5.1).")
+     "regression test in tests/test_hardening.py (Table 5.1). Figure 5.1 shows the most serious one.")
 table_caption("Table 5.1. Security fixes made during integration")
 table(["Problem", "Impact", "Fix"], [
     ["The rate limiter keyed requests on the left-most X-Forwarded-For value, which the client controls when no proxy overwrites it", "An attacker sends a different fake IP with every login request and is never rate-limited, which allows unlimited online password guessing", "client_address() uses the TCP peer address and trusts X-Forwarded-For only when TRUST_PROXY_HEADERS is set (enabled behind Caddy or Vercel, which overwrite the header). Test: 12 spoofed attempts → 10 × 401, then 429"],
@@ -768,13 +710,12 @@ code('''def client_address(request: Request) -> str:
         if forwarded:
             return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"''')
-para("We also integrated the lab without weakening the application: the lab page keeps script-src 'self' (all inline "
-     "event handlers of the midterm prototype were replaced by event delegation), and only inline styles are allowed so "
-     "that value fingerprints can be coloured. The lab is disabled by default when APP_ENV=production. We also fixed "
+figure("flow_ratelimit.png", "5.1", "Password guessing behind a spoofed X-Forwarded-For header, before and after the fix.", 6.0)
+para("We also fixed "
      "functional bugs in the web interface: a selected file could not be removed (every file picker now shows the file "
      "with a remove button and supports drag and drop), the signing result was displayed before the server had accepted "
      "the signature, and the display font was never loaded, so headings fell back to a serif font.")
-heading("5.6 How an Attacker Might Still Try to Bypass the Defenses", 2)
+heading("5.5 How an Attacker Might Still Try to Bypass the Defenses", 2)
 bullet("**Stealing the encrypted key file and guessing the password:** PBKDF2 with 310,000 iterations slows guessing but does not stop it for weak passwords. A memory-hard KDF (Argon2id via WebAssembly), a non-extractable key in the browser, or a hardware token (WebAuthn, smart card, HSM) would be stronger.")
 bullet("**Malicious JavaScript:** because signing happens in the browser, a cross-site scripting bug or a compromised server could serve code that steals the decrypted key. The strict CSP, HttpOnly session cookie and no inline scripts reduce this risk, but users must still trust the server that delivers the code.")
 bullet("**Social engineering of trust:** proof-of-possession proves that a key belongs to an account, not that the account belongs to the real person. Eve can register as \"Alice Nguyen\" with her own key. Users must compare fingerprints through another channel before marking a key as trusted; a PKI with identity-verified certificates would solve this.")
@@ -785,26 +726,23 @@ bullet("**Signing a different view of the document:** SecureSign signs the exact
 # ---------------- CHAPTER 6
 heading("CHAPTER 6. CONCLUSION AND LIMITATIONS", 1, page_break=True)
 heading("6.1 Conclusion", 2)
-para("We met both success criteria set in our midterm plan. SecureSign signs PDFs correctly with RSA-PSS and rejected every "
-     "tampered document and impostor key with both RSA-PSS and ECDSA P-256, and in the Security Lab the ECDSA private key was recovered from only two "
-     "signed PDFs with a reused nonce, after which a forged invoice passed both the cryptography library and OpenSSL. The "
-     "RFC 6979 patch, RSA-PSS, proof-of-possession and the signed evidence chain each defeated their attack. The "
-     "demonstration supports the central thesis of our midterm report: the mathematics of RSA and ECC was never broken. "
-     "Every failure came from implementation details: a reused number, missing padding, a registry that did not check who "
-     "owns a key, or a log that could be rewritten.")
+para("SecureSign signs PDFs correctly with RSA-PSS and ECDSA P-256 and rejected every tampered document and impostor key, "
+     "which meets the correct-use criterion of our midterm plan. Each analysed attack was stopped by a specific mechanism: "
+     "re-verification of the signature against the PDF bytes stopped tampering, proof-of-possession stopped key "
+     "substitution, server-signed receipts in a hash chain stopped repudiation and log tampering, and audited ECDSA with a "
+     "fresh nonce per signature avoids the private-key recovery of the nonce-reuse attack. The work supports the central "
+     "thesis of our midterm report: the mathematics of RSA and ECC is not what breaks in practice; implementation details "
+     "are, such as a reused number, a registry that does not check who owns a key, or a log that can be rewritten.")
 heading("6.2 Hardest Technical Challenges", 2)
-bullet("**Reproducing the bug at all.** The cryptography library (correctly) never exposes the nonce, so we had to implement P-256 point arithmetic and ECDSA ourselves and then prove it interoperates with the library and with OpenSSL.")
 bullet("**Keeping the private key on the client.** Signing in the browser with Web Crypto means the server can never see the key, but key storage, encryption parameters and the proof-of-possession protocol all had to be designed carefully so the server can still trust which account a key belongs to.")
-bullet("**Integrating the lab into a secured application.** The midterm prototype used inline scripts and a single global state. Moving it into SecureSign required per-user state, session and CSRF protection, and rewriting the page so that it works under a strict Content Security Policy.")
 bullet("**Making non-repudiation verifiable.** A receipt must be checkable by a third party without trusting the server, so the signed bytes had to be canonical, the verifier had to ignore the key embedded in the file, and the chain had to be appended under a lock so that two requests cannot create the same sequence number.")
-bullet("**Keeping the demo honest.** The relying party always verifies with an independent, audited library (and OpenSSL), never with our own code, and every screenshot in this report was produced by a script that drives the real application.")
+bullet("**Keeping the demo honest.** Every check uses an independent, audited library (and OpenSSL for ECDSA .sig files), never our own cryptographic code, and every screenshot in this report was produced by a script that drives the real application.")
+bullet("**Interoperability between the browser and the server.** Web Crypto returns ECDSA signatures as raw r||s while the server and OpenSSL expect DER, and PKCS#8 keys exported by the browser had to be readable by Python for the demo data; both directions had to be tested end to end.")
 heading("6.3 Limitations", 2)
 bullet("Signatures are detached RSA-PSS or ECDSA .sig files, not embedded PAdES signatures, and there are no CA-issued certificates or revocation (CRL/OCSP). A valid signature proves who holds the key, not a verified legal identity.")
 bullet("Receipts are issued by SecureSign itself, not by an independent RFC 3161 time-stamping authority, so they are only as trustworthy as the server's clock and receipt key. By default that key is generated once and stored in the database; deployments should provide it through SECURESIGN_RECEIPT_KEY_PEM. Key rotation for receipts is not implemented.")
-bullet("The lab's ecc_core.py uses Python big integers and a branching double-and-add loop. It is slow and not constant-time, so it must never sign real data; SecureSign itself does not use it.")
-bullet("The nonce attack covers only exact reuse. Partially biased nonces would need a lattice (Hidden Number Problem) attack, which we did not implement.")
+bullet("The ECDSA nonce-reuse attack is analysed with a flow diagram and its equations, not executed, because audited libraries do not let the caller choose the nonce.")
 bullet("There is no multi-factor authentication, malware scanning of uploads, storage quota or email notification. PDFs are limited to 4 MiB on Vercel, and the in-memory rate limiter is only suitable for a single local instance (Upstash Redis is used on Vercel).")
-bullet("Security Lab state is kept in server memory, so it is lost on restart and is not shared between server instances.")
 heading("6.4 Improvements for a Real-World Production Environment", 2)
 para("Issue X.509 certificates from a trusted CA (or an internal PKI) after identity verification, and embed signatures "
      "as PAdES with RFC 3161 timestamps so that documents stay verifiable after a key expires. Keep the receipt key in an "
@@ -858,9 +796,10 @@ for num, cap in FIGS:
     short = cap.rstrip('.')
     list_entry(LOF_ANCHOR, f"Figure {num}:", short, f"fig {num}")
 LOF_ANCHOR.getparent().remove(LOF_ANCHOR)
-TABLES = [("1.1", "Project metadata"), ("2.1", "Software and libraries"), ("2.2", "Source files and their roles"), ("2.3", "Demo accounts (development mode only)"),
-          ("3.1", "Scenes of the Security Lab"), ("3.2", "Algorithms used and rationale"),
-          ("4.1", "Mapping of the demonstration steps"), ("5.1", "Security fixes made during integration")]
+TABLES = [("1.1", "Project metadata"), ("2.1", "Software and libraries"), ("2.2", "Source files and their roles"),
+          ("2.3", "Demo accounts (development mode only)"), ("3.1", "Threats, defenses and where they are demonstrated"),
+          ("3.2", "Algorithms used and rationale"), ("4.1", "Mapping of the demonstration steps"),
+          ("5.1", "Security fixes made during integration")]
 for num, cap in TABLES:
     list_entry(LOT_ANCHOR, f"Table {num}:", cap, f"tab {num}")
 LOT_ANCHOR.getparent().remove(LOT_ANCHOR)

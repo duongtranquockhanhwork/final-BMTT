@@ -33,34 +33,22 @@ code{font:12px Menlo,Consolas,monospace;background:#ffffffaa;padding:0 3px;borde
     <li>Key registry: <code>verify_proof_of_possession()</code></li>
     <li>Re-verifies every signature: <code>verify_signature()</code></li>
     <li>Inbox access control, trust marks, audit log</li>
-    <li>⛓ Evidence log: server-signed receipts (ECDSA P-256), SHA-256 hash chain</li>
-    <li>🛡 Security Lab API (<code>/lab</code>, per-user state)</li></ul></div>
+    <li>⛓ Evidence log: server-signed receipts (ECDSA P-256), SHA-256 hash chain</li></ul></div>
   <div class="arrow"><b>→</b>SQL / files</div>
   <div class="box data" style="flex:.7"><h3>🗄 Storage</h3><ul>
     <li>PostgreSQL (prod) / SQLite (dev): users, sessions, public keys, documents, audit, evidence chain</li>
     <li>PDF + <code>.sig</code>: local disk or private Vercel Blob</li></ul></div>
 </div>
 <div class="lab">
-<h2>(b) Security Lab, Scenes 2–3: ECDSA nonce-reuse attack on signed invoice PDFs, and the RFC 6979 patch</h2>
+<h2>(b) Threats and the defense that stops each one (details: flow diagrams in Chapters 4 and 5)</h2>
 <div class="row">
-  <div class="actor a1"><h3>🏢 Invoice signing service</h3>
-    <span class="bug">Scene 2 (bug):</span> <code>k</code> drawn once, reused<br>
-    <span class="fix">Scene 3 (fix):</span> <code>k = RFC6979(d, H(pdf))</code><br>
-    signs <code>invoice-1001.pdf</code>, <code>invoice-1002.pdf</code></div>
-  <div class="arrow"><b>→</b>publish</div>
-  <div class="actor a2"><h3>🌐 Public channel</h3>
-    (pdf₁, r, s₁), (pdf₂, r, s₂)<br>
-    <span class="bug">same r ⇒ same k</span><br><span class="fix">fixed: r₁ ≠ r₂</span></div>
-  <div class="arrow"><b>→</b>observe</div>
-  <div class="actor a3"><h3>🦹 Attacker (public data only)</h3>
-    <code>find_reused_nonce()</code><br>
-    k = (h₁−h₂)/(s₁−s₂) mod n<br>
-    d = (s₁k−h₁)/r mod n → signs forged PDF</div>
-  <div class="arrow"><b>→</b>forged PDF<br>+ .sig</div>
-  <div class="actor a4"><h3>🏦 Verifier (cryptography / OpenSSL)</h3>
-    <span class="bug">Scene 2: VALID → 1,000,000 USD paid</span><br>
-    <span class="fix">Scene 3: wrong d′, d′·G ≠ Q → REJECTED</span></div>
+  <div class="actor a3"><h3>✏️ Tampering</h3>edit a signed PDF<br><span class="fix">→ SHA-256 + signature re-verified</span></div>
+  <div class="arrow"></div>
+  <div class="actor a3"><h3>🪪 Key substitution</h3>claim another user's public key<br><span class="fix">→ proof-of-possession challenge</span></div>
+  <div class="arrow"></div>
+  <div class="actor a3"><h3>🙅 Repudiation</h3>deny / back-date / edit the log<br><span class="fix">→ signed receipts + hash chain</span></div>
+  <div class="arrow"></div>
+  <div class="actor a3"><h3>🔑 Key theft</h3>steal keys from the server<br><span class="fix">→ keys generated &amp; encrypted in the browser</span></div>
 </div>
-<div class="legend">Scenes 1, 4, 5 and 6 reuse the same actors: tampering and impersonation (rejected), textbook RSA vs RSA-PSS, key substitution vs proof-of-possession, and repudiation / log tampering vs signed, hash-chained receipts.</div>
 </div>
-</div></body></html>
+</div></div></body></html>

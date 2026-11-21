@@ -8,9 +8,9 @@ What it does
   2. Drives the real web app with Playwright (installed Google Chrome, headless):
      Alice and Bob register, Alice creates an RSA key in the browser, proves possession,
      signs a PDF, sends it to Bob; Bob trusts Alice's key, verifies the document and a
-     tampered copy; the admin opens the user list; then the Security Lab scenes run.
-  3. Runs the console demos, the test suite and an OpenSSL check of the forged PDF and
-     renders their coloured output as terminal screenshots.
+     tampered copy, checks the delivery receipt; the admin checks the evidence chain.
+  3. Runs the test suite and the offline receipt verifier and renders their coloured
+     output as terminal screenshots; finally draws the flow diagrams (make_diagrams.py).
 All accounts and passwords are random test values that exist only for this run.
 """
 import html
@@ -34,7 +34,8 @@ SRC = SUB / "source"
 SHOTS = SUB / "screenshots"
 PY = SRC / ".venv" / "bin" / "python"
 sys.path.insert(0, str(SRC))
-from backend.lab.pdf_tools import make_pdf  # noqa: E402
+sys.path.insert(0, str(SRC / "demo_data"))
+from pdf_tools import make_pdf  # noqa: E402
 
 CONTRACT = ("CONTRACT #2026-11\n"
             "Alice Nguyen agrees to pay Bob Tran 1,000 USD on 30/11/2026\n"
@@ -101,15 +102,6 @@ def term_shot(page, transcript, out, title="Terminal — zsh — Python 3.11.9 (
     print("  saved", out)
 
 
-def between(start, end=None, head=None):
-    """Keep the prompt/banner (`head` lines) plus the lines from `start` up to (not incl.) `end`."""
-    def cut(lines):
-        i = next(k for k, l in enumerate(lines) if start in l)
-        j = next((k for k, l in enumerate(lines) if end and end in l and k > i), len(lines))
-        return (lines[:head] + ["   ..."] if head else []) + lines[i:j]
-    return cut
-
-
 # --------------------------------------------------------------------------- app helpers
 def register(page, base, name, email, password):
     page.goto(base)
@@ -134,14 +126,6 @@ def shot_main(page, out, full=False):
         page.screenshot(path=str(SHOTS / out), full_page=True)
     else:
         page.screenshot(path=str(SHOTS / out))
-    print("  saved", out)
-
-
-def lab(page, base, deep, out):
-    page.goto(f"{base}/lab?{secrets.token_hex(3)}#{deep}")
-    page.wait_for_function("document.title.includes('[ready]')", timeout=60000)
-    page.wait_for_timeout(500)
-    page.screenshot(path=str(SHOTS / out), full_page=True)
     print("  saved", out)
 
 
@@ -264,41 +248,11 @@ def main():
             go(alice, "history")
             shot_main(alice, "fig09_history.png")
 
-            print("Security Lab")
-            lab_opts = dict(viewport={"width": 1100, "height": 900}, device_scale_factor=2, accept_downloads=True, bypass_csp=True)
-            lab_ctx = browser.new_context(**lab_opts)
-            lab_ctx.add_cookies(alice_ctx.cookies())
-            lp = lab_ctx.new_page()
-            lab(lp, base, "correct/5", "fig10_lab_correct.png")
-            lab(lp, base, "attack/5", "fig12_lab_attack.png")
-            for name in ("forged.pdf", "forged.sig", "public.pem"):
-                (files / f"lab-{name}").write_bytes(lab_ctx.request.get(f"{base}/api/lab/ecdsa/files/{name}").body())
-            lab(lp, base, "defense/6", "fig15_lab_defense.png")
-            lab(lp, base, "rsa/3", "fig16_lab_rsa.png")
-            lab(lp, base, "keysub/3", "fig17_lab_keysub.png")
-            lab(lp, base, "evidence/4", "fig18_lab_evidence.png")
-
             print("Terminal")
             tp = browser.new_page(device_scale_factor=2)
-            tp.goto((Path(__file__).parent / "architecture.html").as_uri())
-            tp.locator("#d").screenshot(path=str(SHOTS / "fig00_architecture.png"))
-            print("  saved fig00_architecture.png")
             t = run_console([("python -m pytest -v", "python -m pytest -v -p no:cacheprovider")])
             t = re.sub(r"^platform .*\n|^cachedir: .*\n|^rootdir: .*\n|^plugins: .*\n", "", t, flags=re.M)
             term_shot(tp, t, "fig01_tests.png", width=1000)
-            d2 = run_console([("python demos/demo2_nonce_reuse_attack.py", "python demos/demo2_nonce_reuse_attack.py")])
-            term_shot(tp, d2, "fig11_demo2_attack.png", keep=between("Step 3", None, head=4))
-            off = files
-            t = run_console([
-                ("ls lab-*", "ls lab-*"),
-                ("openssl dgst -sha256 -verify lab-public.pem -signature lab-forged.sig lab-forged.pdf",
-                 "openssl dgst -sha256 -verify lab-public.pem -signature lab-forged.sig lab-forged.pdf"),
-                ("LC_ALL=C sed 's/1,000,000/9,000,000/' lab-forged.pdf > edited.pdf && openssl dgst -sha256 -verify lab-public.pem -signature lab-forged.sig edited.pdf",
-                 "LC_ALL=C sed 's/1,000,000/9,000,000/' lab-forged.pdf > edited.pdf && openssl dgst -sha256 -verify lab-public.pem -signature lab-forged.sig edited.pdf"),
-            ], cwd=off)
-            term_shot(tp, t, "fig13_openssl_forgery.png", title="Terminal — zsh — LibreSSL 3.3.6 (independent verifier)")
-            d3 = run_console([("python demos/demo3_defense_rfc6979.py", "python demos/demo3_defense_rfc6979.py")])
-            term_shot(tp, d3, "fig14_demo3_defense.png")
             # Offline verification of Alice's signing receipt, with the server key fetched once
             hist = alice_ctx.request.get(f"{base}/api/history").json()["items"]
             seq = next(h["receipt_seq"] for h in hist if h["event_type"] == "SIGN" and h["receipt_seq"])
@@ -310,6 +264,8 @@ def main():
             ], cwd=files)
             term_shot(tp, t, "fig20_verify_receipt_cli.png")
             browser.close()
+        import make_diagrams                      # flow diagrams + architecture (drawn, not captured)
+        make_diagrams.main()
     finally:
         server.terminate()
         shutil.rmtree(tmp, ignore_errors=True)
