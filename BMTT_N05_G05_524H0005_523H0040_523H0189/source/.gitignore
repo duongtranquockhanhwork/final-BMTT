@@ -1,4 +1,36 @@
-output/
-__pycache__/
-*.pyc
+# Python
 .venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and local data
+.env
+.env.*
+!.env.example
+storage/*
+!storage/.gitkeep
+*.pem
+*.key
+*.key.json
+*.sig
+*.pdf
+*.db
+*.sqlite3
+
+# OS/editor
+.DS_Store
+.vscode/
+
+# Vercel
+.vercel/
+.env.local
+.env.*.local
+demos/output/
+
+# Demo data is public on purpose (see README "Demo accounts")
+!demo_data/*.key.json
+!demo_data/*.pdf

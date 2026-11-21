@@ -4,7 +4,7 @@
 set -e
 ROOT=${0:A:h:h}
 SUB="$ROOT/BMTT_N05_G05_524H0005_523H0040_523H0189"
-MID="$ROOT/midterm/BMTT_N05_G05_524H0005_523H0040_523H0189/Midterm_Report.docx"
+MID="$ROOT/tools/template/Midterm_Report.docx"   # format template (midterm report layout)
 TMP=$(mktemp -d)
 cd "${0:A:h}"
 python3 build_report.py "$MID" "$SUB/screenshots" "$TMP/p1.docx" >/dev/null

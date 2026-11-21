@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{margin:0;background:#fff;font:14px/1.4 -apple-system,"Segoe UI",Arial,sans-serif;color:#1d2d43}
+#d{width:1180px;padding:22px 26px;box-sizing:border-box}
+h2{font-size:17px;margin:4px 0 12px;color:#142b4a}
+.row{display:flex;align-items:stretch;gap:0}
+.box{border:2px solid #c9d7ea;border-radius:12px;padding:12px 14px;background:#f8fbff;flex:1}
+.box h3{margin:0 0 6px;font-size:15px;color:#142b4a}
+.box ul{margin:0;padding-left:17px}.box li{margin:2px 0}
+.arrow{display:flex;flex-direction:column;justify-content:center;align-items:center;width:92px;color:#2469d8;font-weight:700;font-size:12px;text-align:center}
+.arrow b{font-size:26px;line-height:1}
+.browser{background:#eef5ff;border-color:#8fb4ea}.server{background:#f4f8ff}.data{background:#f2f7f4;border-color:#a9d3bc}
+.lab{margin-top:22px;border-top:2px dashed #c9d7ea;padding-top:14px}
+.actor{border-radius:12px;padding:10px 12px;flex:1;border:2px solid}
+.a1{background:#eef5ff;border-color:#8fb4ea}.a2{background:#f6f6f6;border-color:#cfcfcf}.a3{background:#fff0f1;border-color:#e79aa1}.a4{background:#effaf3;border-color:#8fcfaa}
+.actor h3{margin:0 0 4px;font-size:14px}
+.bug{color:#c53b45;font-weight:700}.fix{color:#168653;font-weight:700}
+code{font:12px Menlo,Consolas,monospace;background:#ffffffaa;padding:0 3px;border-radius:3px}
+.legend{margin-top:10px;font-size:12.5px;color:#52647b}
+</style></head><body><div id="d">
+<h2>(a) SecureSign Cloud: production signing workflow</h2>
+<div class="row">
+  <div class="box browser"><h3>🧑‍💻 Browser (Web Crypto API)</h3><ul>
+    <li>Generate RSA-2048 <b>or ECDSA P-256</b> key pair</li>
+    <li>Encrypt private key: PBKDF2-SHA256 (310k) → AES-256-GCM</li>
+    <li>Sign PDF bytes: RSA-PSS or ECDSA (SHA-256) → <code>.sig</code></li>
+    <li>Sign one-time challenge (proof-of-possession)</li>
+    <li><b>Private key never leaves the device</b></li></ul></div>
+  <div class="arrow"><b>⇄</b>HTTPS<br>cookie + CSRF</div>
+  <div class="box server"><h3>⚙️ FastAPI backend</h3><ul>
+    <li>Security middleware: rate limit, Origin check, CSP, HSTS</li>
+    <li>Accounts: Argon2id, hashed session tokens, roles</li>
+    <li>Key registry: <code>verify_proof_of_possession()</code></li>
+    <li>Re-verifies every signature: <code>verify_signature()</code></li>
+    <li>Inbox access control, trust marks, audit log</li>
+    <li>⛓ Evidence log: server-signed receipts (ECDSA P-256), SHA-256 hash chain</li>
+    <li>🛡 Security Lab API (<code>/lab</code>, per-user state)</li></ul></div>
+  <div class="arrow"><b>→</b>SQL / files</div>
+  <div class="box data" style="flex:.7"><h3>🗄 Storage</h3><ul>
+    <li>PostgreSQL (prod) / SQLite (dev): users, sessions, public keys, documents, audit, evidence chain</li>
+    <li>PDF + <code>.sig</code>: local disk or private Vercel Blob</li></ul></div>
+</div>
+<div class="lab">
+<h2>(b) Security Lab, Scenes 2–3: ECDSA nonce-reuse attack on signed invoice PDFs, and the RFC 6979 patch</h2>
+<div class="row">
+  <div class="actor a1"><h3>🏢 Invoice signing service</h3>
+    <span class="bug">Scene 2 (bug):</span> <code>k</code> drawn once, reused<br>
+    <span class="fix">Scene 3 (fix):</span> <code>k = RFC6979(d, H(pdf))</code><br>
+    signs <code>invoice-1001.pdf</code>, <code>invoice-1002.pdf</code></div>
+  <div class="arrow"><b>→</b>publish</div>
+  <div class="actor a2"><h3>🌐 Public channel</h3>
+    (pdf₁, r, s₁), (pdf₂, r, s₂)<br>
+    <span class="bug">same r ⇒ same k</span><br><span class="fix">fixed: r₁ ≠ r₂</span></div>
+  <div class="arrow"><b>→</b>observe</div>
+  <div class="actor a3"><h3>🦹 Attacker (public data only)</h3>
+    <code>find_reused_nonce()</code><br>
+    k = (h₁−h₂)/(s₁−s₂) mod n<br>
+    d = (s₁k−h₁)/r mod n → signs forged PDF</div>
+  <div class="arrow"><b>→</b>forged PDF<br>+ .sig</div>
+  <div class="actor a4"><h3>🏦 Verifier (cryptography / OpenSSL)</h3>
+    <span class="bug">Scene 2: VALID → 1,000,000 USD paid</span><br>
+    <span class="fix">Scene 3: wrong d′, d′·G ≠ Q → REJECTED</span></div>
+</div>
+<div class="legend">Scenes 1, 4, 5 and 6 reuse the same actors: tampering and impersonation (rejected), textbook RSA vs RSA-PSS, key substitution vs proof-of-possession, and repudiation / log tampering vs signed, hash-chained receipts.</div>
+</div>
+</div></body></html>
